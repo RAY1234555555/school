@@ -66,14 +66,13 @@ export default function StudentPortal() {
           <h3><i className="fas fa-th-large"></i> 快速访问</h3>
           <div className="actions-grid">
             <a href={gmailLink} className="action-button email" target="_blank" rel="noopener noreferrer">
-              <i className="fas fa-envelope"></i>
-              <span>学生邮箱</span>
+              <i className="fas fa-envelope"></i><span>学生邮箱</span>
             </a>
             <Link href="/student-card" legacyBehavior>
               <a className="action-button card"><i className="fas fa-id-card"></i><span>电子学生卡</span></a>
             </Link>
             <a href="https://account.adobe.com/" className="action-button adobe" target="_blank" rel="noopener noreferrer">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Adobe_Express_logo_RGB_1024px.png/500px-Adobe_Express_logo_RGB_1024px.png" alt="Adobe Express" style={{ width: 28, height: 28 }} />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Adobe_Express_logo_RGB_1024px.png/500px-Adobe_Express_logo_RGB_1024px.png" alt="Adobe Express" style={{ width: 40, height: 40 }} />
               <span>Adobe Express</span>
             </a>
             <Link href="/transcript" legacyBehavior>
@@ -114,10 +113,11 @@ export default function StudentPortal() {
         .portal-header, .portal-footer { text-align: center; }
         .logo { width: 90px; height: auto; margin-bottom: 10px; }
         .card { padding: 20px; background: #f9f9f9; border-radius: 12px; margin-bottom: 20px; }
-        .profile-details p, .actions-grid a { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; min-height: 50px; }
-        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
-        .action-button { flex-direction: column; text-align: center; font-weight: bold; min-height: 130px; justify-content: center; }
-        .logout-button, .delete-button { margin: 10px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; }
+        .profile-details p, .actions-grid a { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100px; }
+        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 20px; }
+        .action-button { text-align: center; font-weight: bold; font-size: 15px; color: #333; }
+        .logout-button, .delete-button { margin: 10px; padding: 10px 25px; border-radius: 8px; border: none; cursor: pointer; }
+        .footer-buttons { display: flex; justify-content: center; gap: 20px; }
         .logout-button { background: red; color: white; }
         .delete-button { background: gray; color: white; }
         .footer-text { font-size: 12px; margin-top: 10px; }
