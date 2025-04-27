@@ -1,0 +1,20 @@
+{
+  "name": "confucius-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Confucius Institute Portal",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "13.4.19",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "uuid": "^9.0.0",
+    "cookie": "^0.5.0",
+    "luxon": "^3.4.3",
+    "axios": "^1.6.5"
+  }
+}
