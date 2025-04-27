@@ -1,16 +1,19 @@
-// === 文件 1：pages/api/profile.js ===
-
 import cookie from 'cookie';
 
 export default function handler(req, res) {
   const cookies = cookie.parse(req.headers.cookie || '');
 
-  const fullName = cookies.oauthUsername || '测试用户';
-  const email = cookies.oauthEmail || 'test@example.com';
+  const fullName = cookies.oauthUsername || '';
+  const email = cookies.oauthEmail || '';
   const personalEmail = cookies.oauthPersonalEmail || '';
-  const studentId = cookies.oauthStudentId || '00000000';
+  let studentId = cookies.oauthStudentId || '';
 
-  const [familyName = '', givenName = ''] = fullName.length > 1 ? [fullName[0], fullName.slice(1)] : ['姓', '名'];
+  if (!studentId) {
+    studentId = Math.floor(10000000 + Math.random() * 90000000).toString();
+    res.setHeader('Set-Cookie', [`oauthStudentId=${studentId}; Path=/; HttpOnly`]);
+  }
+
+  const [familyName = '', givenName = ''] = fullName.length > 1 ? [fullName[0], fullName.slice(1)] : ['', ''];
 
   const currentMonth = new Date().getMonth() + 1;
   const semester = currentMonth >= 1 && currentMonth <= 6 ? 'Spring' : 'Fall';
