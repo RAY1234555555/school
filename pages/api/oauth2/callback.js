@@ -1,20 +1,15 @@
 // pages/api/oauth2/callback.js
 import { serialize } from 'cookie';
-// --- !!! 检查并修改这个导入路径以匹配你的项目结构 !!! ---
-import { exchangeCodeForTokens, getGoogleProfile } from '../../../utils/googleOAuth';
-
-function generate8DigitId() {
-    return Math.floor(10000000 + Math.random() * 90000000).toString();
-}
+// --- 确保这个导入路径正确 ---
+import { exchangeCodeForTokens, getGoogleProfile } from '../../../utils/googleOAuth'; 
 
 export default async function handler(req, res) {
-    console.log('--- Callback Start ---');
+    console.log('--- Callback Start (Using Google Sub ID Version) ---');
     console.log('[Callback] Request Cookies:', JSON.stringify(req.cookies || {}));
     console.log('[Callback] Request Query:', JSON.stringify(req.query || {}));
 
     const { code, state } = req.query;
     const savedState = req.cookies.oauthState;
-    const existingStudentId = req.cookies.oauthStudentId;
 
     // 1. Validate state
     if (!state || typeof state !== 'string' || !savedState || state !== savedState) {
@@ -51,9 +46,9 @@ export default async function handler(req, res) {
         console.log('[Callback] Google Profile received:', JSON.stringify(googleProfile, null, 2));
 
         // 5. Validate profile
-        const googleSub = googleProfile.sub;
+        const googleSub = googleProfile.sub; // Google's unique user ID (the long one)
         const email = googleProfile.email;
-        const fullName = googleProfile.name || `${googleProfile.given_name || ''} ${googleProfile.family_name || ''}`.trim() || email.split('@')[0]; // Ensure fullName has a fallback
+        const fullName = googleProfile.name || `${googleProfile.given_name || ''} ${googleProfile.family_name || ''}`.trim() || email.split('@')[0];
 
         if (!googleSub || !email) {
             console.error('[Callback] INCOMPLETE PROFILE from Google! Missing sub or email.');
@@ -71,18 +66,7 @@ export default async function handler(req, res) {
         }
         console.log('[Callback] Domain validated successfully.');
 
-        // 7. Determine Student ID (Use cookie if valid 8-digit, else generate)
-        let studentIdToStore;
-        const studentIdRegex = /^\d{8}$/;
-        if (existingStudentId && studentIdRegex.test(existingStudentId)) {
-            studentIdToStore = existingStudentId;
-            console.log(`[Callback] Using existing 8-digit student ID from cookie: ${studentIdToStore}`);
-        } else {
-            studentIdToStore = generate8DigitId();
-            console.log(`[Callback] Generated new 8-digit student ID (to be stored in cookie): ${studentIdToStore}`);
-        }
-
-        // 8. Set Cookies
+        // 7. Set Cookies - Storing the LONG Google Sub ID in oauthUserId
         const cookieOptions = {
             path: '/',
             httpOnly: true,
@@ -90,21 +74,24 @@ export default async function handler(req, res) {
             sameSite: 'Lax',
             maxAge: 60 * 60 * 24 * 30 // 30 days expiry
         };
-        console.log('[Callback] Setting cookies with studentId:', studentIdToStore);
+        console.log('[Callback] Setting cookies with Google Sub ID:', googleSub);
         res.setHeader('Set-Cookie', [
             serialize('oauthUsername', email, cookieOptions),
-            serialize('oauthStudentId', studentIdToStore, cookieOptions),
+            // *** Storing Google's long ID ***
+            serialize('oauthUserId', googleSub, cookieOptions), 
             serialize('oauthFullName', fullName || '', cookieOptions),
             serialize('oauthTrustLevel', '3', cookieOptions),
+            // You might want to remove oauthStudentId if you exclusively use oauthUserId now
+             serialize('oauthStudentId', '', { ...cookieOptions, maxAge: -1 }), // Example: Expire old cookie
         ]);
 
-        // 9. Redirect to Portal
+        // 8. Redirect to Portal
         console.log('--- Callback End (Redirecting to portal successfully) ---');
         return res.redirect('/student-portal');
 
     } catch (error) {
         console.error('!!! OAUTH CALLBACK EXCEPTION !!!:', error.message || error);
-        console.error(error.stack); // Log the stack trace for detailed debugging
+        console.error(error.stack); 
         console.log('--- Callback End (Redirecting due to exception) ---');
         return res.redirect(`/?error=callback_exception&message=${encodeURIComponent(error.message || 'Unknown error')}`);
     }
