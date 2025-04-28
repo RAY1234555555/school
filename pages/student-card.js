@@ -3,9 +3,9 @@ import Head from 'next/head'
 import Script from 'next/script'
 import { parse } from 'cookie'
 
-// Helper to fetch a Google user from Directory (保持不变)
+// Helper to fetch a Google user from Directory (Keep original logic)
 async function fetchGoogleUser(email) {
-  // ... (之前的 fetchGoogleUser 函数代码保持不变) ...
+  // ... (fetchGoogleUser function remains exactly the same as the working version) ...
   console.log(`[fetchGoogleUser] Attempting to get refresh token for: ${email}`); 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -41,9 +41,8 @@ async function fetchGoogleUser(email) {
   return await userRes.json();
 }
 
-// getServerSideProps (保持不变)
+// getServerSideProps (Keep original logic, adjust fallback/error text to English)
 export async function getServerSideProps({ req }) {
-  // ... (之前的 getServerSideProps 函数代码保持不变) ...
   console.log("[getServerSideProps] Starting for student-card..."); 
   const cookies       = parse(req.headers.cookie||'');
   const oauthUsername = cookies.oauthUsername; 
@@ -53,7 +52,6 @@ export async function getServerSideProps({ req }) {
 
   console.log("[getServerSideProps] Cookies parsed:", cookies); 
 
-  // --- Adjust trust level check if needed ---
   if (!oauthUsername) { 
     console.log("[getServerSideProps] Redirecting: No username found in cookies."); 
     return { redirect:{ destination:'/', permanent:false } }; 
@@ -76,12 +74,14 @@ export async function getServerSideProps({ req }) {
 
   console.log("[getServerSideProps] Google user data fetched successfully."); 
 
-  const fullName = googleUser.name ? `${googleUser.name.familyName || ''}${googleUser.name.givenName || ''}`.trim() : (oauthFullNameFromCookie || '姓名缺失'); // 调整姓名顺序为姓+名
+  // Use English fallback text
+  const fullName = googleUser.name ? `${googleUser.name.givenName || ''} ${googleUser.name.familyName || ''}`.trim() : (oauthFullNameFromCookie || 'Name Missing'); // English fallback
   const studentId = oauthUserId || googleUser.id; 
 
   if (!studentId) {
      console.error("[getServerSideProps] Error: Student ID is missing after checks."); 
-     return { props: { error: "学生ID丢失，无法生成学生卡。" } }; 
+     // Use English error message
+     return { props: { error: "Student ID is missing, cannot generate student card." } }; 
   }
 
   console.log("[getServerSideProps] Data prepared for props:", { fullName, studentEmail, studentId }); 
@@ -95,7 +95,7 @@ export async function getServerSideProps({ req }) {
   };
 }
 
-// Default component export (修改显示文本为中文)
+// Default component export (Change display text back to English)
 export default function StudentCard({
   fullName,
   studentEmail,
@@ -105,9 +105,11 @@ export default function StudentCard({
   if (error) {
       return (
           <div style={{ padding: '40px', textAlign: 'center', color: 'red', fontFamily: 'Arial, sans-serif' }}>
-              <h2>无法加载学生卡</h2>
+              {/* --- English Error Message --- */}
+              <h2>Cannot Load Student Card</h2>
               <p>{error}</p>
-              <a href="/student-portal" style={{color: '#007bff', textDecoration: 'underline'}}>返回门户</a>
+              <a href="/student-portal" style={{color: '#007bff', textDecoration: 'underline'}}>Back to Portal</a>
+              {/* --- End English Error Message --- */}
           </div>
       );
   }
@@ -118,8 +120,10 @@ export default function StudentCard({
   return (
     <>
       <Head>
-        <title>学生卡 - 孔子学院</title>
-        <meta name="description" content="孔子学院学生电子卡" /> 
+         {/* --- English Title --- */}
+        <title>Student Card - Confucius Institute</title>
+        <meta name="description" content="Confucius Institute Student ID Card" /> 
+         {/* --- End English Title --- */}
       </Head>
       <Script
         src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
@@ -148,36 +152,41 @@ export default function StudentCard({
           <div className="school-header">
             <img 
               src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png" 
-              alt="孔子学院 Logo" 
+              // --- English Alt Text ---
+              alt="Confucius Institute Logo" 
               className="logo-in-header" 
             />
-            <h1>孔子学院</h1>
+            {/* Keep Institute Name */}
+            <h1>孔子学院</h1> 
+            {/* Or change to: <h1>Confucius Institute</h1> if preferred */}
           </div>
 
           <div className="card-body">
-            <img src={avatarUrl} alt="学生照片" className="student-photo" onError={(e) => { e.target.onerror = null; e.target.src='/images/avatar-placeholder.png'; }} />
-            {/* --- 开始修改为中文 --- */}
-            <h3>{fullName || '学生姓名'}</h3>
-            <p>2025 秋季</p> {/* 修改 */}
-            <p>计算机科学硕士</p> {/* 修改 (注意: 这个信息目前是静态的) */}
-            <p>{studentEmail || '学生邮箱'}</p>
-            <p><strong>学生ID:</strong> {sid === 'ERRORID' ? '无效ID' : sid}</p> {/* 修改 */}
-            <p className="valid-through">有效期至: 2028年9月</p> {/* 修改 */}
-             {/* --- 结束修改为中文 --- */}
+             {/* --- English Alt Text --- */}
+            <img src={avatarUrl} alt="Student Photo" className="student-photo" onError={(e) => { e.target.onerror = null; e.target.src='/images/avatar-placeholder.png'; }} />
+            {/* --- Start English Text --- */}
+            <h3>{fullName || 'Student Name'}</h3> {/* English fallback */}
+            <p>Fall 2025</p> {/* English */}
+            <p>Master of Computer Science</p> {/* English */}
+            <p>{studentEmail || 'Student Email'}</p> {/* English fallback */}
+            <p><strong>Student ID:</strong> {sid === 'ERRORID' ? 'Invalid ID' : sid}</p> {/* English */}
+            <p className="valid-through">Valid Through: September 2028</p> {/* English */}
+             {/* --- End English Text --- */}
             <div className="barcode">
               {sid !== 'ERRORID' ? (
                   <svg id="barcode" width="200" height="70"></svg>
               ) : (
-                  <p style={{color: 'red', fontSize: '12px', marginTop: '5px', height: '70px', display:'flex', alignItems:'center', justifyContent:'center'}}>无法生成条形码 (ID丢失)</p>
+                   /* --- English Error Message --- */
+                  <p style={{color: 'red', fontSize: '12px', marginTop: '5px', height: '70px', display:'flex', alignItems:'center', justifyContent:'center'}}>Cannot generate barcode (ID Missing)</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Styles (保持不变) */}
+      {/* Styles (Keep unchanged) */}
       <style jsx>{`
-        /* ... (之前的 CSS 样式保持不变) ... */
+        /* ... (CSS styles remain exactly the same) ... */
         .wrapper {
           min-height:100vh; display:flex; justify-content:center; align-items:center;
           background:url('https://png.pngtree.com/thumb_back/fw800/background/20231028/pngtree-stunning-isolated-wood-table-top-texture-with-exquisite-texture-image_13705698.png') center/cover no-repeat;
