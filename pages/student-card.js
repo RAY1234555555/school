@@ -1,114 +1,141 @@
 // pages/student-card.js
 import Head from 'next/head'
-import Script from 'next/script'
+import Script from 'next/script' // Make sure to import Script
 import { parse } from 'cookie'
 
+// Helper to fetch a Google user from Directory (保持原项目的逻辑)
 async function fetchGoogleUser(email) {
+  // --- IMPORTANT: This section requires valid GOOGLE_* env variables ---
+  // --- including GOOGLE_REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET ---
+  // --- and appropriate Admin SDK API permissions ---
+  console.log(`[fetchGoogleUser] Attempting to get refresh token for: ${email}`); // Debug
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type':'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id:     process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN, // This is where the error occurred
       grant_type:    'refresh_token'
     })
-  })
+  });
+
   if (!tokenRes.ok) {
-      console.error("Failed to refresh Google token:", tokenRes.status, await tokenRes.text());
-      return null;
+      const errorBody = await tokenRes.text();
+      console.error(`[fetchGoogleUser] Failed to refresh Google token: ${tokenRes.status}`, errorBody);
+      // Throw an error or return null to be handled in getServerSideProps
+      // throw new Error(`Failed to refresh token: ${tokenRes.status}`); 
+      return null; // Returning null will trigger the redirect in getServerSideProps
   }
-  const { access_token } = await tokenRes.json()
+
+  const { access_token } = await tokenRes.json();
+  console.log(`[fetchGoogleUser] Got new access token. Fetching user data...`); // Debug
+
   const userRes = await fetch(
-    `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`, // Added projection=full for more fields if needed
+    `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
     { headers:{ Authorization:`Bearer ${access_token}` } }
-  )
+  );
+
   if (!userRes.ok) {
-      console.error("Failed to fetch Google user:", userRes.status, await userRes.text());
-      return null;
+      const errorBody = await userRes.text();
+      console.error(`[fetchGoogleUser] Failed to fetch Google user data: ${userRes.status}`, errorBody);
+      // throw new Error(`Failed to fetch user data: ${userRes.status}`);
+      return null; // Returning null will trigger the redirect
   }
-  return await userRes.json()
+  console.log(`[fetchGoogleUser] Successfully fetched user data.`); // Debug
+  return await userRes.json();
 }
 
-// getServerSideProps (保持不变, 除了调试日志)
+// getServerSideProps (保持原项目的逻辑)
 export async function getServerSideProps({ req }) {
-  const cookies       = parse(req.headers.cookie||'')
-  const oauthUsername = cookies.oauthUsername
-  const trustLevel    = parseInt(cookies.oauthTrustLevel||'0',10)
+  console.log("[getServerSideProps] Starting for student-card..."); // Debug
+  const cookies       = parse(req.headers.cookie||'');
+  // --- Use the correct cookie names based on your callback.js ---
+  const oauthUsername = cookies.oauthUsername; 
+  const oauthUserId   = cookies.oauthStudentId || cookies.oauthUserId; // Try both common names, prioritize oauthStudentId based on your log
+  const oauthFullNameFromCookie = cookies.oauthFullName; // Get full name from cookie if available
+  const trustLevel    = parseInt(cookies.oauthTrustLevel||'0',10);
 
-  console.log("Student Card - Cookies:", cookies); // Debug log
+  console.log("[getServerSideProps] Cookies parsed:", cookies); // Debug
 
-  // Trust level check (保持不变)
-  // Consider adjusting trust level if needed for this page specifically
+  // --- Adjust trust level check if needed ---
   // if (!oauthUsername || trustLevel < 3) { 
-  if (!oauthUsername) { // Simplified check: just need username for now
-    console.log("Student Card - Redirecting: No username or insufficient trust level."); // Debug log
-    return { redirect:{ destination:'/', permanent:false } }
+  if (!oauthUsername) { // Simplified check for testing, restore original if needed
+    console.log("[getServerSideProps] Redirecting: No username found in cookies."); // Debug
+    // Redirect to login or forbidden page
+    return { redirect:{ destination:'/', permanent:false } }; 
   }
 
   // build studentEmail (保持不变)
-  const rawDom = process.env.EMAIL_DOMAIN
-  const domain = rawDom && rawDom.startsWith('@') ? rawDom : '@'+ (rawDom || 'default.domain'); // Added default domain fallback
+  const rawDom = process.env.EMAIL_DOMAIN;
+  const domain = rawDom && rawDom.startsWith('@') ? rawDom : '@'+ (rawDom || 'kzxy.edu.kg'); // Default to your domain
   const studentEmail = oauthUsername.includes('@')
     ? oauthUsername
-    : `${oauthUsername}${domain}`
+    : `${oauthUsername}${domain}`;
 
-  console.log("Student Card - Attempting to fetch Google user for:", studentEmail); // Debug log
+  console.log("[getServerSideProps] Attempting fetchGoogleUser for:", studentEmail); // Debug
 
   // ensure user exists in Google Directory (保持不变)
-  const googleUser = await fetchGoogleUser(studentEmail)
+  const googleUser = await fetchGoogleUser(studentEmail);
+  
+  // --- Handle googleUser fetch failure ---
   if (!googleUser) {
-    console.log("Student Card - Redirecting: Google user not found."); // Debug log
-    // Redirect to a specific error page or registration page might be better
-    return { redirect:{ destination:'/?error=user_not_found', permanent:false } } // Redirect back with error
-    // return { redirect:{ destination:'/register', permanent:false } } 
+    console.log("[getServerSideProps] Redirecting: fetchGoogleUser failed (returned null)."); // Debug
+    // Redirect on failure, maybe pass error message
+    return { redirect:{ destination:'/?error=google_fetch_failed', permanent:false } }; 
   }
 
-  console.log("Student Card - Google User Data:", googleUser); // Debug log
+  console.log("[getServerSideProps] Google user data fetched successfully."); // Debug
 
-  // Extract data carefully (保持不变, added safety checks)
-  const fullName      = googleUser.name ? `${googleUser.name.givenName || ''} ${googleUser.name.familyName || ''}`.trim() : '名字缺失';
-  // Personal email might be in 'emails' array or 'recoveryEmail'
-  const personalEmail = googleUser.recoveryEmail || (googleUser.emails?.find(e => e.type === 'home' || e.type === 'other')?.address) || '';
-  const studentId     = cookies.oauthUserId || googleUser.id // Use Google ID as fallback if cookie missing? Needs consideration.
+  // Extract data, prioritize Google data, fallback to cookie
+  const fullName = googleUser.name ? `${googleUser.name.givenName || ''} ${googleUser.name.familyName || ''}`.trim() : (oauthFullNameFromCookie || '姓名缺失');
+  const studentId = oauthUserId || googleUser.id; // Use cookie ID first, fallback to Google 'sub' if needed
 
-  // --- Dummy Data for Fallback/Testing (Remove in production) ---
-  // const fullName = "周 周";
-  // const personalEmail = "test@personal.com";
-  // const studentEmail = "ikunla@wcmf.org.uk";
-  // const studentId = "063160";
-  // --- End Dummy Data ---
-
-
+  // --- Ensure studentId is present ---
   if (!studentId) {
-    console.log("Student Card - Error: Student ID is missing."); // Debug log
-     // Handle missing student ID case - maybe redirect or show error
-     return { props: { error: "学生ID丢失" } }; 
+     console.error("[getServerSideProps] Error: Student ID is missing after checks."); // Debug log
+     // Return props with an error message to display on the page
+     return { props: { error: "学生ID丢失，无法生成学生卡。" } }; 
   }
 
+  console.log("[getServerSideProps] Data prepared for props:", { fullName, studentEmail, studentId }); // Debug
 
+  // Pass data to the page component
   return {
-    props: { fullName, personalEmail, studentEmail, studentId }
-  }
+    props: { 
+        fullName, 
+        // personalEmail is not strictly needed by the card display based on screenshot, 
+        // but pass it if you intend to use it elsewhere
+        // personalEmail: googleUser.recoveryEmail || (googleUser.emails?.find(e => e.type === 'home' || e.type === 'other')?.address) || '', 
+        studentEmail, // Pass the determined student email
+        studentId 
+    }
+  };
 }
 
 // Default component export (修改 Logo 和名称)
 export default function StudentCard({
   fullName,
-  personalEmail, // This prop might not be used in the card display itself, but fetched
+  // personalEmail, // Removed if not used in display
   studentEmail,
   studentId,
-  error // Receive error prop if passed from getServerSideProps
+  error // Receive error prop
 }) {
-  // Handle error state first
+  // --- Handle Error First ---
   if (error) {
-      return <div style={{ color: 'red', textAlign: 'center', marginTop: '50px' }}>错误: {error}</div>;
+      return (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'red', fontFamily: 'Arial, sans-serif' }}>
+              <h2>无法加载学生卡</h2>
+              <p>{error}</p>
+              <a href="/student-portal" style={{color: '#007bff', textDecoration: 'underline'}}>返回门户</a>
+          </div>
+      );
   }
-  
-  // Ensure studentId is a string before padding
-  const sid = studentId ? String(studentId).padStart(6,'0') : '000000'; 
-  // Use a placeholder or generic avatar if email is missing, handle potential errors
-  const avatarUrl = studentEmail ? `https://i.pravatar.cc/150?u=${encodeURIComponent(studentEmail)}` : '/avatar-placeholder.png'; // Add a placeholder image to /public
+
+  // Ensure studentId is valid before processing
+  const sid = studentId ? String(studentId).padStart(6,'0') : 'ERRORID'; // Use a distinct error value
+  // Use placeholder if email missing
+  const avatarUrl = studentEmail ? `https://i.pravatar.cc/150?u=${encodeURIComponent(studentEmail)}` : '/images/avatar-placeholder.png'; // Assumes placeholder in public/images
 
   return (
     <>
@@ -117,154 +144,112 @@ export default function StudentCard({
         <title>学生卡 - 孔子学院</title>
         <meta name="description" content="孔子学院学生电子卡" /> 
       </Head>
+      {/* Barcode Script (保持不变) */}
       <Script
         src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
         strategy="afterInteractive"
         onLoad={() => {
-          if (window.JsBarcode && document.getElementById('barcode') && sid !== '000000') { // Check element exists and sid is valid
+          if (window.JsBarcode && document.getElementById('barcode') && sid !== 'ERRORID') { 
             try {
               window.JsBarcode('#barcode', sid, {
                 format: 'CODE128',
                 lineColor: '#000',
                 width: 2,
                 height: 50,
-                displayValue: true, // Display value below barcode
-                textMargin: 5 // Add some margin for the text
+                displayValue: true, 
+                textMargin: 5 
               });
-            } catch (e) {
-              console.error("JsBarcode error:", e); // Catch potential barcode errors
-            }
-          } else if (sid === '000000') {
-              console.warn("Student ID is missing, cannot generate barcode.");
+            } catch (e) { console.error("JsBarcode error:", e); }
+          } else if (sid === 'ERRORID') {
+              console.warn("Student ID is invalid, cannot generate barcode.");
           }
         }}
-        onError={(e) => {
-            console.error("Failed to load JsBarcode script:", e);
-        }}
+        onError={(e) => { console.error("Failed to load JsBarcode script:", e); }}
       />
 
+      {/* Wrapper and Card Structure (保持不变) */}
       <div className="wrapper">
         <div className="card">
-          {/* School header with UPDATED logo and name */}
+          {/* === School Header - Branding Changed === */}
           <div className="school-header">
-            {/* --- 修改 Logo --- */}
+            {/* 孔子学院 Logo */}
             <img 
               src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png" 
               alt="孔子学院 Logo" 
-              className="logo-in-header" // Use a class for styling
+              className="logo-in-header" 
             />
-            {/* --- 修改大学名称 --- */}
+            {/* 孔子学院 Name */}
             <h1>孔子学院</h1>
           </div>
+          {/* === End Branding Change === */}
 
-          {/* Card Body - 保持不变 */}
+          {/* Card Body (保持不变) */}
           <div className="card-body">
-            <img src={avatarUrl} alt="学生照片" className="student-photo" onError={(e) => { e.target.onerror = null; e.target.src='/avatar-placeholder.png'; }} /> {/* Add error handler for avatar */}
-            <h3>{fullName || '学生姓名'}</h3> {/* Fallback for name */}
-            {/* Static text - kept as per screenshot */}
+            <img src={avatarUrl} alt="学生照片" className="student-photo" onError={(e) => { e.target.onerror = null; e.target.src='/images/avatar-placeholder.png'; }} />
+            <h3>{fullName || '学生姓名'}</h3>
+            {/* Static info from screenshot - Keep or make dynamic if needed */}
             <p>Fall 2025</p> 
             <p>Master of Computer Science</p> 
-            {/* End Static text */}
-            <p>{studentEmail || '学生邮箱'}</p> {/* Fallback for email */}
-            <p><strong>学生ID:</strong> {sid}</p> 
-            {/* Static text - kept as per screenshot */}
+            {/* --- End Static Info --- */}
+            <p>{studentEmail || '学生邮箱'}</p>
+            <p><strong>学生ID:</strong> {sid === 'ERRORID' ? '无效ID' : sid}</p>
+            {/* Static info from screenshot */}
             <p className="valid-through">有效期至: September 2028</p> 
-            {/* End Static text */}
+            {/* --- End Static Info --- */}
             <div className="barcode">
-              {/* Ensure SVG exists even if barcode fails, or conditionally render */}
-              <svg id="barcode" width="200" height="70"></svg> {/* Increased height slightly for text */}
-              {sid === '000000' && <p style={{color: 'red', fontSize: '12px', marginTop: '5px'}}>ID丢失</p>} {/* Show message if ID missing */}
+              {/* Conditional rendering for barcode area */}
+              {sid !== 'ERRORID' ? (
+                  <svg id="barcode" width="200" height="70"></svg>
+              ) : (
+                  <p style={{color: 'red', fontSize: '12px', marginTop: '5px', height: '70px', display:'flex', alignItems:'center', justifyContent:'center'}}>无法生成条形码 (ID丢失)</p>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Styles - 保持不变, 但为新 Logo 添加样式 */}
+      {/* Styles (保持不变, 包含 logo-in-header 样式) */}
       <style jsx>{`
+        /* Styles copied from the previous correct version */
         .wrapper {
-          min-height:100vh;
-          display:flex;justify-content:center;align-items:center;
-          background:url('https://png.pngtree.com/thumb_back/fw800/background/20231028/pngtree-stunning-isolated-wood-table-top-texture-with-exquisite-texture-image_13705698.png')
-            center/cover no-repeat;
-          padding:20px;
-          font-family: Arial, sans-serif; /* Added default font */
+          min-height:100vh; display:flex; justify-content:center; align-items:center;
+          background:url('https://png.pngtree.com/thumb_back/fw800/background/20231028/pngtree-stunning-isolated-wood-table-top-texture-with-exquisite-texture-image_13705698.png') center/cover no-repeat;
+          padding:20px; font-family: Arial, sans-serif;
         }
         .card {
-          width: 350px; /* Slightly narrower? Adjust as needed */
-          max-width: 90%; /* Ensure responsiveness */
-          background:linear-gradient(145deg,#f8f9fa,#ffffff); /* Lighter gradient */
-          border:1px solid #dee2e6; /* Lighter border */
-          border-radius:12px; /* Slightly more rounded */
-          box-shadow:0 10px 25px rgba(0,0,0,0.1); /* Adjusted shadow */
-          overflow:hidden;
+          width: 350px; max-width: 90%; background:linear-gradient(145deg,#f8f9fa,#ffffff);
+          border:1px solid #dee2e6; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.1); overflow:hidden;
         }
         .school-header {
-          display:flex;align-items:center;gap:10px; /* Increased gap */
-          /* Use a solid color or a simpler gradient if preferred */
-          background: #0056b3; /* Example: Solid blue */
-          /* background:linear-gradient(to right,#0056b3,#007bff); /* Adjusted gradient */
-          padding:12px 18px; /* Adjusted padding */
+          display:flex; align-items:center; gap:10px; background: #0056b3; padding:12px 18px;
         }
-        /* --- 新 Logo 的样式 --- */
-        .logo-in-header {
-           width: 32px; /* Adjust size as needed */
-           height: 32px;
-           object-fit: contain; /* Ensure logo fits well */
-           border-radius: 4px; /* Optional: match portal logo style */
+        .logo-in-header { /* Style for the Confucius Institute logo */
+           width: 32px; height: 32px; object-fit: contain; border-radius: 4px;
         }
         .school-header h1 {
-          margin:0;
-          font-size:18px; /* Adjusted size */
-          color:#fff;
-          font-weight: 600; /* Slightly bolder */
+          margin:0; font-size:18px; color:#fff; font-weight: 600;
         }
         .card-body {
-          background:#fff;
-          padding:25px; /* Increased padding */
-          text-align:center;
+          background:#fff; padding:25px; text-align:center;
         }
         .student-photo {
-          width:90px; /* Adjusted size */
-          height:90px;
-          object-fit:cover;
-          border:4px solid #e9ecef; /* Lighter border */
-          border-radius:50%;
-          box-shadow:0 3px 8px rgba(0,0,0,0.15); /* Adjusted shadow */
-          margin-bottom:15px; /* Increased margin */
+          width:90px; height:90px; object-fit:cover; border:4px solid #e9ecef;
+          border-radius:50%; box-shadow:0 3px 8px rgba(0,0,0,0.15); margin-bottom:15px;
         }
         h3 { /* Student Name */
-          margin:10px 0 5px 0; /* Adjusted margin */
-          font-size:18px; /* Adjusted size */
-          color:#212529; /* Darker color */
-          font-weight: 600;
+          margin:10px 0 5px 0; font-size:18px; color:#212529; font-weight: 600;
         }
         p {
-          margin:4px 0; /* Reduced margin */
-          font-size:14px; /* Adjusted size */
-          color:#495057; /* Adjusted color */
-          line-height: 1.5; /* Added line height */
+          margin:4px 0; font-size:14px; color:#495057; line-height: 1.5;
         }
-        p strong {
-          font-weight: 600; /* Make labels slightly bolder */
-          color: #343a40;
-        }
+        p strong { font-weight: 600; color: #343a40; }
         .valid-through {
-          margin-top:15px; /* Increased margin */
-          font-weight:bold;
-          font-size: 13px; /* Smaller font size */
-          color:#555; /* Adjusted color */
+          margin-top:15px; font-weight:bold; font-size: 13px; color:#555;
         }
         .barcode {
-          margin-top:18px; /* Adjusted margin */
-          display: flex; /* Center the SVG and text */
-          flex-direction: column;
-          align-items: center;
+          margin-top:18px; display: flex; flex-direction: column; align-items: center;
         }
-         /* Style for text below barcode (generated by JsBarcode) */
-         .barcode :global(text) { 
-            font-size: 14px !important; /* Ensure text size */
-            font-family: monospace !important;
-         }
+        .barcode :global(text) { font-size: 14px !important; font-family: monospace !important; }
       `}</style>
     </>
   )
