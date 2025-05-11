@@ -35,6 +35,7 @@ export default function Home() {
       <Head>
         <title>Confucius Institute - Sign In</title>
         <meta name="description" content="Sign in to the Confucius Institute Student Portal" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -46,35 +47,83 @@ export default function Home() {
       <div className="login-container">
         <div className="login-content">
           <div className="left-panel">
-            <div className="brand-container">
+            <div className="logo-section">
               <img
                 src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
                 alt="Confucius Institute Logo"
                 className="logo"
               />
-              <h1 className="brand-name">Confucius Institute</h1>
             </div>
+
             <div className="welcome-text">
               <h2>Welcome to the Student Portal</h2>
               <p>Access your courses, transcripts, and student resources in one place.</p>
             </div>
+
             <div className="features">
               <div className="feature-item">
-                <div className="feature-icon">📚</div>
+                <div className="feature-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+                  </svg>
+                </div>
                 <div className="feature-text">
                   <h3>Course Materials</h3>
                   <p>Access all your learning resources</p>
                 </div>
               </div>
+
               <div className="feature-item">
-                <div className="feature-icon">🎓</div>
+                <div className="feature-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                    <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                  </svg>
+                </div>
                 <div className="feature-text">
                   <h3>Academic Records</h3>
                   <p>View your grades and transcripts</p>
                 </div>
               </div>
+
               <div className="feature-item">
-                <div className="feature-icon">📝</div>
+                <div className="feature-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
                 <div className="feature-text">
                   <h3>Student Services</h3>
                   <p>Manage your student account</p>
@@ -159,6 +208,7 @@ export default function Home() {
           background-color: #f5f7fa;
           color: #333;
           height: 100vh;
+          overflow-x: hidden;
         }
 
         .login-container {
@@ -167,6 +217,7 @@ export default function Home() {
           align-items: center;
           justify-content: center;
           padding: 20px;
+          background: linear-gradient(135deg, rgba(240, 244, 248, 0.8), rgba(255, 255, 255, 0.9));
         }
 
         .login-content {
@@ -175,9 +226,10 @@ export default function Home() {
           max-width: 1100px;
           min-height: 600px;
           background: white;
-          border-radius: 16px;
+          border-radius: 20px;
           overflow: hidden;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+          position: relative;
         }
 
         .left-panel {
@@ -187,39 +239,55 @@ export default function Home() {
           padding: 40px;
           display: flex;
           flex-direction: column;
+          position: relative;
+          overflow: hidden;
         }
 
-        .brand-container {
+        .left-panel::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+          opacity: 0.5;
+          z-index: 0;
+        }
+
+        .logo-section {
           display: flex;
-          align-items: center;
+          justify-content: center;
           margin-bottom: 40px;
+          position: relative;
+          z-index: 1;
         }
 
         .logo {
-          width: 50px;
-          height: 50px;
+          width: 280px;
+          height: auto;
           object-fit: contain;
-          margin-right: 15px;
-          background: white;
-          border-radius: 10px;
-          padding: 5px;
+          filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+          transition: transform 0.3s ease;
         }
 
-        .brand-name {
-          font-size: 24px;
-          font-weight: 600;
-          margin: 0;
+        .logo:hover {
+          transform: scale(1.02);
         }
 
         .welcome-text {
           margin-bottom: 40px;
+          text-align: center;
+          position: relative;
+          z-index: 1;
         }
 
         .welcome-text h2 {
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 700;
           margin: 0 0 15px 0;
           line-height: 1.2;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .welcome-text p {
@@ -231,24 +299,41 @@ export default function Home() {
 
         .features {
           margin-top: auto;
+          position: relative;
+          z-index: 1;
         }
 
         .feature-item {
           display: flex;
           align-items: center;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
+          background: rgba(255, 255, 255, 0.1);
+          padding: 16px;
+          border-radius: 12px;
+          backdrop-filter: blur(5px);
+          -webkit-backdrop-filter: blur(5px);
+          transition: all 0.3s ease;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-item:hover {
+          background: rgba(255, 255, 255, 0.15);
+          transform: translateY(-3px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .feature-icon {
-          font-size: 24px;
           margin-right: 15px;
-          width: 40px;
-          height: 40px;
+          width: 42px;
+          height: 42px;
           background: rgba(255, 255, 255, 0.2);
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         .feature-text h3 {
@@ -269,11 +354,37 @@ export default function Home() {
           align-items: center;
           justify-content: center;
           padding: 40px;
+          background: linear-gradient(to bottom right, #f9fafb, #f5f7fa);
+          position: relative;
+        }
+
+        .right-panel::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23000000' fill-opacity='0.02' fill-rule='evenodd'/%3E%3C/svg%3E");
+          opacity: 0.5;
         }
 
         .login-box {
           width: 100%;
           max-width: 360px;
+          background: white;
+          padding: 30px;
+          border-radius: 16px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+          position: relative;
+          z-index: 1;
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .login-box:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
         }
 
         .login-header {
@@ -304,6 +415,12 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 8px;
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .google-signin-button {
@@ -322,11 +439,30 @@ export default function Home() {
           gap: 10px;
           transition: all 0.2s ease;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .google-signin-button::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+          transform: translateX(-100%);
+          transition: transform 0.6s ease;
         }
 
         .google-signin-button:hover {
           background-color: #f9fafb;
           box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+          border-color: #ccc;
+        }
+
+        .google-signin-button:hover::after {
+          transform: translateX(100%);
         }
 
         .google-signin-button:active {
@@ -363,27 +499,113 @@ export default function Home() {
           color: #6b7280;
         }
 
+        /* Tablet Styles */
+        @media (max-width: 992px) {
+          .login-content {
+            max-width: 90%;
+          }
+          
+          .logo {
+            width: 240px;
+          }
+          
+          .welcome-text h2 {
+            font-size: 24px;
+          }
+          
+          .left-panel, .right-panel {
+            padding: 30px;
+          }
+        }
+
+        /* Mobile Styles */
         @media (max-width: 768px) {
           .login-content {
             flex-direction: column;
             min-height: auto;
+            max-width: 95%;
           }
 
           .left-panel {
-            padding: 30px;
+            padding: 30px 20px;
+          }
+
+          .logo {
+            width: 200px;
           }
 
           .welcome-text h2 {
-            font-size: 24px;
+            font-size: 22px;
+          }
+          
+          .welcome-text p {
+            font-size: 14px;
           }
 
           .features {
-            margin-top: 30px;
+            margin-top: 20px;
             margin-bottom: 20px;
+          }
+          
+          .feature-item {
+            padding: 12px;
+          }
+          
+          .feature-icon {
+            width: 36px;
+            height: 36px;
           }
 
           .right-panel {
-            padding: 30px;
+            padding: 25px 20px;
+          }
+
+          .login-box {
+            padding: 20px;
+            max-width: 100%;
+          }
+        }
+
+        /* Small Mobile Styles */
+        @media (max-width: 480px) {
+          .login-container {
+            padding: 10px;
+          }
+          
+          .login-content {
+            border-radius: 15px;
+          }
+          
+          .left-panel {
+            padding: 25px 15px;
+          }
+          
+          .logo {
+            width: 180px;
+          }
+          
+          .welcome-text h2 {
+            font-size: 20px;
+          }
+          
+          .feature-item {
+            margin-bottom: 12px;
+          }
+          
+          .feature-text h3 {
+            font-size: 15px;
+          }
+          
+          .feature-text p {
+            font-size: 13px;
+          }
+          
+          .login-box {
+            padding: 15px;
+          }
+          
+          .login-header h2 {
+            font-size: 22px;
           }
         }
       `}</style>
