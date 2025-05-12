@@ -131,7 +131,7 @@ export async function getServerSideProps({ req }) {
   }
 }
 
-// --- Redesigned StudentPortal Component with Clear Navigation Structure ---
+// --- Completely Redesigned StudentPortal Component ---
 export default function StudentPortal({ initialFullName, initialEmail, initialStudentId, error, fetchError }) {
   const router = useRouter()
   const [currentSemester, setCurrentSemester] = useState("")
@@ -146,8 +146,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
     const year = now.getFullYear()
     const month = now.getMonth() + 1
     let semesterText = ""
-    if (month >= 9 || month <= 2) semesterText = `${year} 秋冬`
-    else if (month >= 3 && month <= 8) semesterText = `${year} 春夏`
+    if (month >= 9 || month <= 2) semesterText = `${year} Fall/Winter`
+    else if (month >= 3 && month <= 8) semesterText = `${year} Spring/Summer`
     else semesterText = `${year}`
     setCurrentSemester(semesterText)
     setCurrentYear(year)
@@ -201,14 +201,14 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
-          <h1>无法加载门户</h1>
+          <h1>Unable to Load Portal</h1>
           <p>{error}</p>
           <div className="error-actions">
             <a href="/student-portal" className="btn btn-primary">
-              重试
+              Try Again
             </a>
             <a href="/" className="btn btn-secondary">
-              返回登录
+              Return to Login
             </a>
           </div>
         </div>
@@ -219,23 +219,23 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
   return (
     <>
       <Head>
-        <title>学生仪表板 | 孔子学院</title>
+        <title>Student Portal | Confucius Institute</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500&display=swap"
           rel="stylesheet"
         />
       </Head>
 
       <div className="app-container">
-        {/* Sidebar - Only for Navigation */}
+        {/* Sidebar */}
         <aside className={`sidebar ${isMobileMenuOpen ? "sidebar-open" : ""}`}>
           <div className="sidebar-header">
             <img
               src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
-              alt="孔子学院"
+              alt="Confucius Institute"
               className="sidebar-logo"
             />
             <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
@@ -259,37 +259,17 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           <div className="sidebar-user">
             <div className="user-avatar">{initialFullName ? initialFullName.charAt(0).toUpperCase() : "S"}</div>
             <div className="user-info">
-              <h3 className="user-name">{initialFullName || "学生"}</h3>
-              <p className="user-email">{initialEmail || "加载中..."}</p>
+              <h3 className="user-name">{initialFullName || "Student"}</h3>
+              <p className="user-email">{initialEmail || "Loading..."}</p>
             </div>
           </div>
 
           <nav className="sidebar-nav">
-            <ul className="nav-list">
-              <li className="nav-item active">
-                <a href="#dashboard" className="nav-link">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="14" width="7" height="7"></rect>
-                    <rect x="3" y="14" width="7" height="7"></rect>
-                  </svg>
-                  <span>抄本</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <Link href="/student-card" legacyBehavior>
-                  <a className="nav-link">
+            <div className="nav-section">
+              <h4 className="nav-title">Services</h4>
+              <ul className="nav-list">
+                <li className="nav-item active">
+                  <a href="#dashboard" className="nav-link">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="20"
@@ -301,16 +281,23 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                      <line x1="2" y1="10" x2="22" y2="10"></line>
+                      <rect x="3" y="3" width="7" height="7"></rect>
+                      <rect x="14" y="3" width="7" height="7"></rect>
+                      <rect x="14" y="14" width="7" height="7"></rect>
+                      <rect x="3" y="14" width="7" height="7"></rect>
                     </svg>
-                    <span>学生证</span>
+                    Dashboard
                   </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/transcript" legacyBehavior>
-                  <a className="nav-link">
+                </li>
+                <li className="nav-item">
+                  <a
+                    href={`https://mail.google.com/a/${
+                      initialEmail?.split("@")[1] || "kzxy.edu.kg"
+                    }?Email=${encodeURIComponent(initialEmail || "")}`}
+                    className="nav-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="20"
@@ -322,19 +309,88 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
-                    <span>抄本</span>
+                    Email
                   </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/admission-letter" legacyBehavior>
-                  <a className="nav-link">
+                </li>
+                <li className="nav-item">
+                  <Link href="/student-card" legacyBehavior>
+                    <a className="nav-link">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                        <line x1="2" y1="10" x2="22" y2="10"></line>
+                      </svg>
+                      Student Card
+                    </a>
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link href="/transcript" legacyBehavior>
+                    <a className="nav-link">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
+                      Transcript
+                    </a>
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link href="/aliases" legacyBehavior>
+                    <a className="nav-link">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                      </svg>
+                      Email Aliases
+                    </a>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div className="nav-section">
+              <h4 className="nav-title">Tools</h4>
+              <ul className="nav-list">
+                <li className="nav-item">
+                  <a href="https://account.adobe.com/" className="nav-link" target="_blank" rel="noopener noreferrer">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="20"
@@ -346,43 +402,13 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
-                    <span>录取通知书</span>
+                    Adobe Express
                   </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <a
-                  href={`https://mail.google.com/a/${
-                    initialEmail?.split("@")[1] || "kzxy.edu.kg"
-                  }?Email=${encodeURIComponent(initialEmail || "")}`}
-                  className="nav-link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                  <span>电子邮件</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <Link href="/aliases" legacyBehavior>
-                  <a className="nav-link">
+                </li>
+                <li className="nav-item">
+                  <a href="https://www.canva.com/login" className="nav-link" target="_blank" rel="noopener noreferrer">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="20"
@@ -394,58 +420,42 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="9" cy="7" r="4"></circle>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
                     </svg>
-                    <span>电子邮件别名</span>
+                    Canva
                   </a>
-                </Link>
-              </li>
-              <li className="nav-divider"></li>
-              <li className="nav-item">
-                <a href="https://account.adobe.com/" className="nav-link" target="_blank" rel="noopener noreferrer">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                  <span>Adobe Express</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <a href="https://www.canva.com/login" className="nav-link" target="_blank" rel="noopener noreferrer">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
-                  <span>Canva 餐厅</span>
-                </a>
-              </li>
-              <li className="nav-divider"></li>
-              <li className="nav-item">
-                <Link href="/reset-password" legacyBehavior>
-                  <a className="nav-link">
+                </li>
+              </ul>
+            </div>
+
+            <div className="nav-section">
+              <h4 className="nav-title">Account</h4>
+              <ul className="nav-list">
+                <li className="nav-item">
+                  <Link href="/reset-password" legacyBehavior>
+                    <a className="nav-link">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                      Reset Password
+                    </a>
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <button onClick={handleLogout} disabled={isLoggingOut} className="nav-link logout">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="20"
@@ -457,60 +467,41 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                      <polyline points="16 17 21 12 16 7"></polyline>
+                      <line x1="21" y1="12" x2="9" y2="12"></line>
                     </svg>
-                    <span>重置密码</span>
-                  </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <button onClick={handleLogout} disabled={isLoggingOut} className="nav-link logout">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                  <span>{isLoggingOut ? "注销中..." : "注销"}</span>
-                </button>
-              </li>
-              <li className="nav-item">
-                <button onClick={() => setIsDeleteModalOpen(true)} className="nav-link delete">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                  </svg>
-                  <span>删除账户</span>
-                </button>
-              </li>
-            </ul>
+                    {isLoggingOut ? "Logging out..." : "Logout"}
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button onClick={() => setIsDeleteModalOpen(true)} className="nav-link delete">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Delete Account
+                  </button>
+                </li>
+              </ul>
+            </div>
           </nav>
 
           <div className="sidebar-footer">
             <p>
-              © {currentYear} 孔子学院
+              © {currentYear} Confucius Institute
               <br />
               <a href="https://kzxy.edu.kg" target="_blank" rel="noopener noreferrer">
                 kzxy.edu.kg
@@ -540,7 +531,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                 <line x1="3" y1="18" x2="21" y2="18"></line>
               </svg>
             </button>
-            <h1 className="page-title">学生仪表板</h1>
+            <h1 className="page-title">Student Dashboard</h1>
             <div className="top-bar-actions">
               <button onClick={handleLogout} disabled={isLoggingOut} className="logout-btn">
                 {isLoggingOut ? (
@@ -593,46 +584,46 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
             {/* Welcome Section */}
             <section className="welcome-section">
               <div className="welcome-text">
-                <h2>欢迎, {initialFullName || "学生"}!</h2>
-                <p>以下是您需要了解的 {currentSemester || "本学期"} 信息。</p>
+                <h2>Welcome, {initialFullName || "Student"}!</h2>
+                <p>Here's what you need to know for {currentSemester || "this semester"}.</p>
               </div>
             </section>
 
             {/* Student Info Card */}
             <section className="info-section">
               <div className="section-header">
-                <h2 className="section-title">学生信息</h2>
+                <h2 className="section-title">Student Information</h2>
               </div>
               <div className="info-card">
                 <div className="info-grid">
                   <div className="info-item">
-                    <span className="info-label">名字</span>
-                    <span className="info-value">{initialFullName || "加载中..."}</span>
+                    <span className="info-label">Name</span>
+                    <span className="info-value">{initialFullName || "Loading..."}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">学生证</span>
-                    <span className="info-value highlight">{initialStudentId || "加载中..."}</span>
+                    <span className="info-label">Student ID</span>
+                    <span className="info-value highlight">{initialStudentId || "Loading..."}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">电子邮件</span>
-                    <span className="info-value">{initialEmail || "加载中..."}</span>
+                    <span className="info-label">Email</span>
+                    <span className="info-value">{initialEmail || "Loading..."}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">学期</span>
-                    <span className="info-value">{currentSemester || "计算中..."}</span>
+                    <span className="info-label">Semester</span>
+                    <span className="info-value">{currentSemester || "Calculating..."}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">程序</span>
+                    <span className="info-label">Program</span>
                     <span className="info-value">汉语学习项目</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Quick Access Section - Main Dashboard Content */}
+            {/* Quick Access Section */}
             <section className="services-section">
               <div className="section-header">
-                <h2 className="section-title">快速访问</h2>
+                <h2 className="section-title">Quick Access</h2>
               </div>
               <div className="services-grid">
                 <Link href="/student-card" legacyBehavior>
@@ -653,8 +644,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                         <line x1="2" y1="10" x2="22" y2="10"></line>
                       </svg>
                     </div>
-                    <h3>学生证</h3>
-                    <p>查看您的数字学生证</p>
+                    <h3>Student Card</h3>
+                    <p>View your digital student ID</p>
                   </a>
                 </Link>
 
@@ -679,32 +670,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                         <polyline points="10 9 9 9 8 9"></polyline>
                       </svg>
                     </div>
-                    <h3>抄本</h3>
-                    <p>查看您的学术记录</p>
-                  </a>
-                </Link>
-
-                <Link href="/admission-letter" legacyBehavior>
-                  <a className="service-card">
-                    <div className="service-icon purple">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                      </svg>
-                    </div>
-                    <h3>录取通知书</h3>
-                    <p>查看您的录取通知书</p>
+                    <h3>Transcript</h3>
+                    <p>View your academic record</p>
                   </a>
                 </Link>
 
@@ -732,8 +699,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
                   </div>
-                  <h3>电子邮件</h3>
-                  <p>访问您的学生电子邮件</p>
+                  <h3>Email</h3>
+                  <p>Access your student email</p>
                 </a>
 
                 <Link href="/aliases" legacyBehavior>
@@ -756,8 +723,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                         <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                       </svg>
                     </div>
-                    <h3>电子邮件别名</h3>
-                    <p>管理其他电子邮件地址</p>
+                    <h3>Email Aliases</h3>
+                    <p>Manage additional email addresses</p>
                   </a>
                 </Link>
               </div>
@@ -766,7 +733,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
             {/* External Tools Section */}
             <section className="tools-section">
               <div className="section-header">
-                <h2 className="section-title">外部工具</h2>
+                <h2 className="section-title">External Tools</h2>
               </div>
               <div className="tools-grid">
                 <a href="https://account.adobe.com/" className="tool-card" target="_blank" rel="noopener noreferrer">
@@ -787,7 +754,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                   </div>
                   <div className="tool-info">
                     <h3>Adobe Express</h3>
-                    <p>创建图形、视频和网页</p>
+                    <p>Create graphics, videos, and web pages</p>
                   </div>
                   <div className="tool-action">
                     <svg
@@ -826,8 +793,8 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                     </svg>
                   </div>
                   <div className="tool-info">
-                    <h3>Canva 餐厅</h3>
-                    <p>设计演示文稿和图形</p>
+                    <h3>Canva</h3>
+                    <p>Design presentations and graphics</p>
                   </div>
                   <div className="tool-action">
                     <svg
@@ -846,18 +813,10 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                     </svg>
                   </div>
                 </a>
-              </div>
-            </section>
 
-            {/* Account Management Section */}
-            <section className="account-section">
-              <div className="section-header">
-                <h2 className="section-title">账户管理</h2>
-              </div>
-              <div className="account-grid">
                 <Link href="/reset-password" legacyBehavior>
-                  <a className="account-card">
-                    <div className="account-icon">
+                  <a className="tool-card">
+                    <div className="tool-icon">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="24"
@@ -873,49 +832,31 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                       </svg>
                     </div>
-                    <div className="account-info">
-                      <h3>重置密码</h3>
-                      <p>更改您的账户密码</p>
+                    <div className="tool-info">
+                      <h3>Reset Password</h3>
+                      <p>Change your account password</p>
+                    </div>
+                    <div className="tool-action">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                      </svg>
                     </div>
                   </a>
                 </Link>
-
-                <button onClick={() => setIsDeleteModalOpen(true)} className="account-card delete">
-                  <div className="account-icon delete">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      <line x1="10" y1="11" x2="10" y2="17"></line>
-                      <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
-                  </div>
-                  <div className="account-info">
-                    <h3>删除账户</h3>
-                    <p>永久删除您的账户和数据</p>
-                  </div>
-                </button>
               </div>
             </section>
           </div>
-
-          {/* Footer */}
-          <footer className="footer">
-            <div className="footer-content">
-              <p>
-                © {currentYear} 孔子学院 | <a href="https://kzxy.edu.kg">kzxy.edu.kg</a>
-              </p>
-            </div>
-          </footer>
         </main>
 
         {/* Delete Account Modal */}
@@ -923,7 +864,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           <div className="modal-overlay">
             <div className="modal">
               <div className="modal-header">
-                <h3>删除账户</h3>
+                <h3>Delete Account</h3>
                 <button className="modal-close" onClick={() => setIsDeleteModalOpen(false)}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -959,15 +900,18 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                   </svg>
                 </div>
-                <h4>您确定要删除您的账户吗？</h4>
-                <p>此操作是永久性的，无法撤消。您的所有数据，包括电子邮件和个人信息，将被永久删除。</p>
+                <h4>Are you sure you want to delete your account?</h4>
+                <p>
+                  This action is permanent and cannot be undone. All your data, including emails and personal
+                  information, will be permanently removed.
+                </p>
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>
-                  取消
+                  Cancel
                 </button>
                 <button className="btn btn-danger" onClick={handleDelete} disabled={isDeleting}>
-                  {isDeleting ? <span className="loading-spinner small"></span> : "删除账户"}
+                  {isDeleting ? <span className="loading-spinner small"></span> : "Delete Account"}
                 </button>
               </div>
             </div>
@@ -980,7 +924,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         :global(body) {
           margin: 0;
           padding: 0;
-          font-family: 'Noto Sans SC', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          font-family: 'Google Sans Text', 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           background-color: #f8f9fa;
           color: #202124;
           line-height: 1.5;
@@ -1014,6 +958,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .error-container h1 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 24px;
           font-weight: 500;
           margin: 0 0 16px;
@@ -1098,6 +1043,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           display: flex;
           align-items: center;
           justify-content: center;
+          font-family: 'Google Sans', sans-serif;
           font-size: 18px;
           font-weight: 500;
         }
@@ -1108,6 +1054,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .user-name {
+          font-family: 'Google Sans', sans-serif;
           font-size: 16px;
           font-weight: 500;
           margin: 0 0 4px;
@@ -1132,6 +1079,20 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           overflow-y: auto;
         }
 
+        .nav-section {
+          margin-bottom: 24px;
+        }
+
+        .nav-title {
+          font-family: 'Google Sans', sans-serif;
+          font-size: 12px;
+          font-weight: 500;
+          text-transform: uppercase;
+          color: #5f6368;
+          margin: 0 0 8px 16px;
+          letter-spacing: 0.5px;
+        }
+
         .nav-list {
           list-style: none;
           padding: 0;
@@ -1140,12 +1101,6 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
 
         .nav-item {
           margin: 2px 0;
-        }
-
-        .nav-divider {
-          height: 1px;
-          background-color: #dadce0;
-          margin: 8px 16px;
         }
 
         .nav-link {
@@ -1255,6 +1210,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .page-title {
+          font-family: 'Google Sans', sans-serif;
           font-size: 20px;
           font-weight: 500;
           color: #202124;
@@ -1312,6 +1268,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .welcome-text h2 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 28px;
           font-weight: 400;
           color: #202124;
@@ -1333,6 +1290,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .section-title {
+          font-family: 'Google Sans', sans-serif;
           font-size: 20px;
           font-weight: 500;
           color: #202124;
@@ -1444,6 +1402,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .service-card h3 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 16px;
           font-weight: 500;
           color: #202124;
@@ -1505,6 +1464,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .tool-info h3 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 16px;
           font-weight: 500;
           color: #202124;
@@ -1524,110 +1484,6 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           color: #5f6368;
           margin-left: 16px;
           flex-shrink: 0;
-        }
-
-        /* Account Section */
-        .account-section {
-          margin-bottom: 32px;
-        }
-
-        .account-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 16px;
-        }
-
-        .account-card {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          padding: 16px;
-          text-decoration: none;
-          color: inherit;
-          display: flex;
-          align-items: center;
-          transition: background-color 0.2s;
-          border: none;
-          text-align: left;
-          cursor: pointer;
-          width: 100%;
-        }
-
-        .account-card:hover {
-          background-color: #f8f9fa;
-        }
-
-        .account-card.delete {
-          color: #ea4335;
-        }
-
-        .account-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 24px;
-          background-color: #f1f3f4;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-right: 16px;
-          flex-shrink: 0;
-        }
-
-        .account-icon svg {
-          color: #5f6368;
-        }
-
-        .account-icon.delete svg {
-          color: #ea4335;
-        }
-
-        .account-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .account-info h3 {
-          font-size: 16px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0 0 4px;
-        }
-
-        .account-card.delete .account-info h3 {
-          color: #ea4335;
-        }
-
-        .account-info p {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-        }
-
-        /* Footer */
-        .footer {
-          background-color: white;
-          border-top: 1px solid #dadce0;
-          padding: 16px 24px;
-          margin-top: auto;
-        }
-
-        .footer-content {
-          text-align: center;
-          font-size: 12px;
-          color: #5f6368;
-        }
-
-        .footer-content p {
-          margin: 0;
-        }
-
-        .footer-content a {
-          color: #1a73e8;
-          text-decoration: none;
-        }
-
-        .footer-content a:hover {
-          text-decoration: underline;
         }
 
         /* Modal */
@@ -1677,6 +1533,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .modal-header h3 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 18px;
           font-weight: 500;
           color: #202124;
@@ -1714,6 +1571,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
         }
 
         .modal-body h4 {
+          font-family: 'Google Sans', sans-serif;
           font-size: 16px;
           font-weight: 500;
           color: #202124;
@@ -1737,6 +1595,7 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
 
         /* Buttons */
         .btn {
+          font-family: 'Google Sans', sans-serif;
           font-size: 14px;
           font-weight: 500;
           padding: 8px 24px;
@@ -1809,10 +1668,6 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
           .services-grid {
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
           }
-          
-          .account-grid {
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          }
         }
 
         @media (max-width: 768px) {
@@ -1847,10 +1702,6 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
 
           .services-grid {
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          }
-          
-          .account-grid {
-            grid-template-columns: 1fr;
           }
         }
 
