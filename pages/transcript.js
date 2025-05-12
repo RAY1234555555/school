@@ -147,34 +147,12 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   const confuciusCoursePool = [
     { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
     { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
-    { id: "CHN103", title: "Elementary Chinese Writing", credits: 3.0 },
-    { id: "CHN104", title: "Elementary Chinese Listening", credits: 3.0 },
-    { id: "CHN201", title: "Intermediate Chinese Speaking", credits: 3.0 },
-    { id: "CHN202", title: "Intermediate Chinese Reading", credits: 3.0 },
-    { id: "CHN203", title: "Intermediate Chinese Writing", credits: 3.0 },
-    { id: "CHN204", title: "Intermediate Chinese Listening", credits: 3.0 },
-    { id: "CHN301", title: "Advanced Chinese Grammar", credits: 3.0 },
-    { id: "CHN302", title: "Advanced Chinese Composition", credits: 3.0 },
-    { id: "CHN303", title: "Business Chinese", credits: 3.0 },
-    { id: "CHN304", title: "Chinese for Academic Purposes", credits: 3.0 },
+    { id: "CHN201", title: "Intermediate Chinese Listening", credits: 3.0 },
     { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
-    { id: "CUL110", title: "Chinese Festivals and Customs", credits: 2.0 },
     { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0 },
     { id: "CUL130", title: "Chinese Tea Culture", credits: 2.0 },
-    { id: "CUL200", title: "Ancient Chinese Literature", credits: 3.0 },
-    { id: "CUL210", title: "Chinese Philosophy Introduction", credits: 3.0 },
-    { id: "CUL220", title: "Chinese Traditional Medicine", credits: 2.0 },
     { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
-    { id: "CUL240", title: "Chinese Painting Basics", credits: 1.0 },
     { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
-    { id: "CUL260", title: "Chinese Film and Media", credits: 3.0 },
-    { id: "HIS100", title: "Chinese History Overview", credits: 3.0 },
-    { id: "HIS110", title: "Modern Chinese History", credits: 3.0 },
-    { id: "HIS120", title: "Chinese Dynasties", credits: 3.0 },
-    { id: "GEO100", title: "Chinese Geography", credits: 3.0 },
-    { id: "POL100", title: "Chinese Politics and Law", credits: 3.0 },
-    { id: "ECO100", title: "Chinese Economic Development", credits: 3.0 },
-    { id: "LIT100", title: "Modern Chinese Literature", credits: 3.0 },
   ]
 
   // Simplified to generate fewer terms with fixed number of courses
@@ -207,81 +185,67 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       const currentYear = currentDate.getFullYear()
 
       // Just use Fall and Spring of the current year
-      const terms = [`Fall ${currentYear - 1}`, `Spring ${currentYear}`]
+      const terms = [`Spring ${currentYear}`]
       setCurrentTerm(`Spring ${currentYear}`)
 
       // For each term, generate exactly 4 courses
-      const usedCourseIndices = new Set()
-
       terms.forEach((term, termIndex) => {
-        const coursesPerTerm = 4 // Fixed at 4 courses per term
+        const coursesPerTerm = 5 // 固定显示5门课程
         const termCourses = []
 
-        // Try to add unique courses up to coursesPerTerm
-        for (let i = 0; i < coursesPerTerm; i++) {
-          // Find an unused course
-          let attempts = 0
-          let courseIdx
-
-          do {
-            courseIdx = Math.floor(random(termIndex * 100 + i * 10) * confuciusCoursePool.length)
-            attempts++
-          } while (usedCourseIndices.has(courseIdx) && attempts < 30)
-
-          // If we found a new course or tried enough times, use it
-          if (!usedCourseIndices.has(courseIdx) || attempts >= 30) {
-            if (!usedCourseIndices.has(courseIdx)) {
-              usedCourseIndices.add(courseIdx)
-            }
-
-            const course = confuciusCoursePool[courseIdx]
-
-            // Generate grade based on student ID and course
-            const gradeRoll = random(termIndex * 100 + i * 10 + 1)
-            // Weight grades to be more realistic (more common to get B range)
-            let gradeIdx
-            if (gradeRoll < 0.15)
-              gradeIdx = 0 // A
-            else if (gradeRoll < 0.25)
-              gradeIdx = 1 // A-
-            else if (gradeRoll < 0.4)
-              gradeIdx = 2 // B+
-            else if (gradeRoll < 0.6)
-              gradeIdx = 3 // B
-            else if (gradeRoll < 0.7)
-              gradeIdx = 4 // B-
-            else if (gradeRoll < 0.8)
-              gradeIdx = 5 // C+
-            else if (gradeRoll < 0.9)
-              gradeIdx = 6 // C
-            else if (gradeRoll < 0.95)
-              gradeIdx = 7 // C-
-            else if (gradeRoll < 0.97)
-              gradeIdx = 8 // D+
-            else if (gradeRoll < 0.99)
-              gradeIdx = 9 // D
-            else gradeIdx = 10 // W (rare)
-
-            const grade = grades[gradeIdx]
-            const credit = course.credits
-            const isEarned = grade !== "W"
-            const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
-
-            termCourses.push({
-              term,
-              courseId: course.id,
-              title: course.title,
-              grade,
-              credit,
-            })
-
-            totalAttempted += credit
-            if (isEarned) {
-              totalEarned += credit
-              totalQualityPoints += qualityPts
-            }
+        // 选择5门不同的课程
+        const selectedCourses = []
+        for (let i = 0; i < confuciusCoursePool.length && selectedCourses.length < coursesPerTerm; i++) {
+          const courseIdx = Math.floor(random(termIndex * 100 + i * 10) * confuciusCoursePool.length)
+          if (!selectedCourses.includes(courseIdx)) {
+            selectedCourses.push(courseIdx)
           }
         }
+
+        // 确保我们有足够的课程
+        while (selectedCourses.length < coursesPerTerm) {
+          const courseIdx = Math.floor(random(selectedCourses.length) * confuciusCoursePool.length)
+          if (!selectedCourses.includes(courseIdx)) {
+            selectedCourses.push(courseIdx)
+          }
+        }
+
+        // 为每门课程生成不同的成绩
+        selectedCourses.forEach((courseIdx, i) => {
+          const course = confuciusCoursePool[courseIdx]
+
+          // 生成随机成绩，确保多样性
+          const gradeRoll = random(termIndex * 100 + i * 10 + 1)
+          let gradeIdx
+          if (i === 0)
+            gradeIdx = 0 // 确保至少有一个A
+          else if (i === 1)
+            gradeIdx = Math.floor(random(i) * 3) + 1 // A-, B+, B
+          else if (i === 2)
+            gradeIdx = Math.floor(random(i) * 3) + 3 // B, B-, C+
+          else if (i === 3)
+            gradeIdx = Math.floor(random(i) * 3) + 5 // C+, C, C-
+          else gradeIdx = Math.floor(random(i) * 10) // 完全随机
+
+          const grade = grades[gradeIdx]
+          const credit = course.credits
+          const isEarned = grade !== "W"
+          const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
+
+          termCourses.push({
+            term,
+            courseId: course.id,
+            title: course.title,
+            grade,
+            credit,
+          })
+
+          totalAttempted += credit
+          if (isEarned) {
+            totalEarned += credit
+            totalQualityPoints += qualityPts
+          }
+        })
 
         if (termCourses.length > 0) {
           selectedCourses.push({ term, courses: termCourses })
@@ -299,49 +263,31 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
     (totalEarned, seed) => {
       const random = (offset) => seededRandom(seed + offset)
 
-      // Total program requirement is fixed at 150 credits
+      // 固定总学分要求为150
       const totalRequired = 150.0
 
-      // Define requirements with randomized proportions
-      const requirementProportions = [
-        { name: "Chinese Language Core", proportion: 0.3 + random(1) * 0.1 }, // 30-40%
-        { name: "Culture & History", proportion: 0.2 + random(2) * 0.1 }, // 20-30%
-        { name: "General Studies", proportion: 0.2 + random(3) * 0.1 }, // 20-30%
-        { name: "Electives", proportion: 0.1 + random(4) * 0.1 }, // 10-20%
+      // 定义固定的要求类别和比例
+      const requirements = [
+        { name: "Chinese Language Core", required: 60.0 }, // 40%
+        { name: "Culture & History", required: 45.0 }, // 30%
+        { name: "General Studies", required: 30.0 }, // 20%
+        { name: "Electives", required: 15.0 }, // 10%
       ]
 
-      // Normalize proportions to ensure they sum to 1
-      const totalProportion = requirementProportions.reduce((sum, req) => sum + req.proportion, 0)
-      requirementProportions.forEach((req) => (req.proportion = req.proportion / totalProportion))
-
-      // Calculate required credits for each category
-      const requirements = requirementProportions.map((req) => ({
-        name: req.name,
-        required: Math.round(totalRequired * req.proportion * 10) / 10, // Round to 1 decimal place
-      }))
-
-      // Adjust the last requirement to ensure total is exactly 150
-      const calculatedTotal = requirements.reduce((sum, req) => sum + req.required, 0)
-      const lastIndex = requirements.length - 1
-      requirements[lastIndex].required =
-        Math.round((requirements[lastIndex].required + (totalRequired - calculatedTotal)) * 10) / 10
-
-      // Distribute earned credits among requirements with some randomness
+      // 分配已完成的学分
       let remainingCredits = totalEarned
-      const inProgressCredits = random(10) * 10 // 0-10 credits in progress
-
       const results = requirements.map((req, index) => {
-        // Allocate credits with some randomness
+        // 为每个类别分配一部分已完成的学分
         const maxAllocation = Math.min(remainingCredits, req.required)
         const allocation = Math.round(maxAllocation * (0.7 + random(index * 5) * 0.6) * 10) / 10
         remainingCredits -= allocation
 
-        // Allocate some in-progress credits
-        const inProgressAllocation = index === 0 ? Math.round(inProgressCredits * 10) / 10 : 0
+        // 分配进行中的学分
+        const inProgressAllocation = index === 0 ? Math.round(random(10) * 5 * 10) / 10 : 0
 
         const percentComplete = Math.round((allocation / req.required) * 100)
         const status =
-          percentComplete === 100
+          percentComplete >= 100
             ? "Complete"
             : percentComplete > 0
               ? `In Progress (${percentComplete}%)`
@@ -356,13 +302,13 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         }
       })
 
-      // Add total row
+      // 计算总计
       const totalCompleted = results.reduce((sum, req) => sum + Number.parseFloat(req.completed), 0)
       const totalInProgress = results.reduce((sum, req) => sum + Number.parseFloat(req.inProgress), 0)
       const totalRemaining = totalRequired - totalCompleted
       const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
       const totalStatus =
-        totalPercentComplete === 100
+        totalPercentComplete >= 100
           ? "Complete"
           : totalPercentComplete > 0
             ? `In Progress (${totalPercentComplete}%)`
