@@ -4,7 +4,6 @@ import Head from "next/head"
 import Script from "next/script"
 import { useEffect, useState, useCallback } from "react"
 import { parse } from "cookie"
-import { DateTime } from "luxon"
 
 // --- fetchGoogleUser Helper (Remains the same) ---
 async function fetchGoogleUser(email) {
@@ -156,177 +155,125 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   ]
 
   // Simplified to generate fewer terms with fixed number of courses
-  const generateCoursesData = useCallback(
-    (studentIdSeed) => {
-      const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
-      const gpaPoints = {
-        A: 4.0,
-        "A-": 3.7,
-        "B+": 3.3,
-        B: 3.0,
-        "B-": 2.7,
-        "C+": 2.3,
-        C: 2.0,
-        "C-": 1.7,
-        "D+": 1.3,
-        D: 1.0,
-        W: 0,
+  const generateCoursesData = useCallback((studentIdSeed) => {
+    const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
+    const gpaPoints = {
+      A: 4.0,
+      "A-": 3.7,
+      "B+": 3.3,
+      B: 3.0,
+      "B-": 2.7,
+      "C+": 2.3,
+      C: 2.0,
+      "C-": 1.7,
+      "D+": 1.3,
+      D: 1.0,
+      W: 0,
+    }
+
+    // 使用简单的数字作为种子
+    const seed = 12345
+    const random = (offset) => {
+      const x = Math.sin(seed + offset) * 10000
+      return x - Math.floor(x)
+    }
+
+    // 固定课程数据
+    const courses = [
+      { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0, grade: "A" },
+      { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0, grade: "B+" },
+      { id: "CHN201", title: "Intermediate Chinese Listening", credits: 3.0, grade: "A-" },
+      { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0, grade: "B" },
+      { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0, grade: "B-" },
+    ]
+
+    // 计算总学分和GPA
+    let totalAttempted = 0
+    let totalEarned = 0
+    let totalQualityPoints = 0
+
+    courses.forEach((course) => {
+      const credit = course.credits
+      const grade = course.grade
+      const isEarned = grade !== "W"
+      const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
+
+      totalAttempted += credit
+      if (isEarned) {
+        totalEarned += credit
+        totalQualityPoints += qualityPts
       }
+    })
 
-      const seed = Number.parseInt(studentIdSeed, 10) || Math.floor(Math.random() * 100000)
-      const random = (offset) => seededRandom(seed + offset)
-      const selectedCourses = []
-      let totalAttempted = 0,
-        totalEarned = 0,
-        totalQualityPoints = 0
+    const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
+    const term = "Spring 2025"
+    setCurrentTerm(term)
 
-      // Simplified terms - just use 2 terms
-      const currentDate = new Date()
-      const currentYear = currentDate.getFullYear()
-
-      // Just use Fall and Spring of the current year
-      const terms = [`Spring ${currentYear}`]
-      setCurrentTerm(`Spring ${currentYear}`)
-
-      // For each term, generate exactly 4 courses
-      terms.forEach((term, termIndex) => {
-        const coursesPerTerm = 5 // 固定显示5门课程
-        const termCourses = []
-
-        // 选择5门不同的课程
-        const selectedCourses = []
-        for (let i = 0; i < confuciusCoursePool.length && selectedCourses.length < coursesPerTerm; i++) {
-          const courseIdx = Math.floor(random(termIndex * 100 + i * 10) * confuciusCoursePool.length)
-          if (!selectedCourses.includes(courseIdx)) {
-            selectedCourses.push(courseIdx)
-          }
-        }
-
-        // 确保我们有足够的课程
-        while (selectedCourses.length < coursesPerTerm) {
-          const courseIdx = Math.floor(random(selectedCourses.length) * confuciusCoursePool.length)
-          if (!selectedCourses.includes(courseIdx)) {
-            selectedCourses.push(courseIdx)
-          }
-        }
-
-        // 为每门课程生成不同的成绩
-        selectedCourses.forEach((courseIdx, i) => {
-          const course = confuciusCoursePool[courseIdx]
-
-          // 生成随机成绩，确保多样性
-          const gradeRoll = random(termIndex * 100 + i * 10 + 1)
-          let gradeIdx
-          if (i === 0)
-            gradeIdx = 0 // 确保至少有一个A
-          else if (i === 1)
-            gradeIdx = Math.floor(random(i) * 3) + 1 // A-, B+, B
-          else if (i === 2)
-            gradeIdx = Math.floor(random(i) * 3) + 3 // B, B-, C+
-          else if (i === 3)
-            gradeIdx = Math.floor(random(i) * 3) + 5 // C+, C, C-
-          else gradeIdx = Math.floor(random(i) * 10) // 完全随机
-
-          const grade = grades[gradeIdx]
-          const credit = course.credits
-          const isEarned = grade !== "W"
-          const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
-
-          termCourses.push({
-            term,
-            courseId: course.id,
-            title: course.title,
-            grade,
-            credit,
-          })
-
-          totalAttempted += credit
-          if (isEarned) {
-            totalEarned += credit
-            totalQualityPoints += qualityPts
-          }
-        })
-
-        if (termCourses.length > 0) {
-          selectedCourses.push({ term, courses: termCourses })
-        }
-      })
-
-      const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
-      return { selectedCourses, totalAttempted, totalEarned, totalQualityPoints, gpa }
-    },
-    [seededRandom],
-  )
+    return {
+      selectedCourses: [{ term, courses }],
+      totalAttempted,
+      totalEarned,
+      totalQualityPoints,
+      gpa,
+    }
+  }, [])
 
   // Generate degree progress data with randomized values
-  const generateDegreeProgress = useCallback(
-    (totalEarned, seed) => {
-      const random = (offset) => seededRandom(seed + offset)
+  const generateDegreeProgress = useCallback((totalEarned, seed) => {
+    // 固定数据
+    const requirements = [
+      {
+        name: "Chinese Language Core",
+        required: 60.0,
+        completed: 6.0,
+        inProgress: 3.0,
+        remaining: 51.0,
+        status: "In Progress (10%)",
+      },
+      {
+        name: "Culture & History",
+        required: 45.0,
+        completed: 5.0,
+        inProgress: 0.0,
+        remaining: 40.0,
+        status: "In Progress (11%)",
+      },
+      {
+        name: "General Studies",
+        required: 30.0,
+        completed: 3.0,
+        inProgress: 0.0,
+        remaining: 27.0,
+        status: "In Progress (10%)",
+      },
+      {
+        name: "Electives",
+        required: 15.0,
+        completed: 0.0,
+        inProgress: 0.0,
+        remaining: 15.0,
+        status: "Not Started (0%)",
+      },
+    ]
 
-      // 固定总学分要求为150
-      const totalRequired = 150.0
+    // 计算总计
+    const totalRequired = 150.0
+    const totalCompleted = 14.0
+    const totalInProgress = 3.0
+    const totalRemaining = totalRequired - totalCompleted
+    const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
 
-      // 定义固定的要求类别和比例
-      const requirements = [
-        { name: "Chinese Language Core", required: 60.0 }, // 40%
-        { name: "Culture & History", required: 45.0 }, // 30%
-        { name: "General Studies", required: 30.0 }, // 20%
-        { name: "Electives", required: 15.0 }, // 10%
-      ]
+    requirements.push({
+      name: "Total Program Requirements",
+      required: totalRequired.toFixed(2),
+      completed: totalCompleted.toFixed(2),
+      inProgress: totalInProgress.toFixed(2),
+      remaining: totalRemaining.toFixed(2),
+      status: `In Progress (${totalPercentComplete}%)`,
+    })
 
-      // 分配已完成的学分
-      let remainingCredits = totalEarned
-      const results = requirements.map((req, index) => {
-        // 为每个类别分配一部分已完成的学分
-        const maxAllocation = Math.min(remainingCredits, req.required)
-        const allocation = Math.round(maxAllocation * (0.7 + random(index * 5) * 0.6) * 10) / 10
-        remainingCredits -= allocation
-
-        // 分配进行中的学分
-        const inProgressAllocation = index === 0 ? Math.round(random(10) * 5 * 10) / 10 : 0
-
-        const percentComplete = Math.round((allocation / req.required) * 100)
-        const status =
-          percentComplete >= 100
-            ? "Complete"
-            : percentComplete > 0
-              ? `In Progress (${percentComplete}%)`
-              : "Not Started (0%)"
-
-        return {
-          ...req,
-          completed: allocation.toFixed(2),
-          inProgress: inProgressAllocation.toFixed(2),
-          remaining: (req.required - allocation).toFixed(2),
-          status,
-        }
-      })
-
-      // 计算总计
-      const totalCompleted = results.reduce((sum, req) => sum + Number.parseFloat(req.completed), 0)
-      const totalInProgress = results.reduce((sum, req) => sum + Number.parseFloat(req.inProgress), 0)
-      const totalRemaining = totalRequired - totalCompleted
-      const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
-      const totalStatus =
-        totalPercentComplete >= 100
-          ? "Complete"
-          : totalPercentComplete > 0
-            ? `In Progress (${totalPercentComplete}%)`
-            : "Not Started (0%)"
-
-      results.push({
-        name: "Total Program Requirements",
-        required: totalRequired.toFixed(2),
-        completed: totalCompleted.toFixed(2),
-        inProgress: totalInProgress.toFixed(2),
-        remaining: totalRemaining.toFixed(2),
-        status: totalStatus,
-      })
-
-      return results
-    },
-    [seededRandom],
-  )
+    return requirements
+  }, [])
 
   // PDF generation function
   // PDF generation function
@@ -371,23 +318,24 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
     const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
 
     if (studentId && studentId !== "ERRORID") {
-      const dobSeed = Number.parseInt(studentId, 10) || 12345
-      setDateOfBirth(generateRandomDOB(dobSeed))
+      // 设置固定的出生日期
+      setDateOfBirth("January 15, 1998")
 
+      // 生成课程数据
       const courseData = generateCoursesData(studentId)
       setCoursesData(courseData)
 
-      // Generate degree progress with randomized values
-      setDegreeProgress(generateDegreeProgress(courseData.totalEarned, dobSeed))
+      // 设置学位进度
+      setDegreeProgress(generateDegreeProgress(courseData.totalEarned))
 
-      const now = DateTime.now().setZone("America/New_York")
-      setPrintDate(now.toFormat("MMMM dd, yyyy"))
+      // 设置打印日期
+      setPrintDate(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
 
-      // Generate transcript number and verification code
-      setTranscriptNo(`CI-TR-${now.toFormat("yyyyMMdd")}${studentId.substring(0, 2)}`)
-      setVerificationCode(`CI${now.toFormat("yyMMdd")}-${studentId.substring(0, 6)}-TR`)
+      // 设置成绩单编号和验证码
+      setTranscriptNo(`CI-TR-20250512-${studentId.substring(0, 2)}`)
+      setVerificationCode(`CI250512-${studentId.substring(0, 6)}-TR`)
 
-      // Set academic standing based on GPA
+      // 设置学术状态
       const gpaNum = Number.parseFloat(courseData.gpa)
       if (gpaNum >= 3.5) {
         setAcademicStanding("Excellent Standing")
@@ -401,15 +349,15 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         setAcademicStanding("Not Started")
       }
     } else {
-      // Set defaults if ID is missing
+      // 设置默认值
       setDateOfBirth("N/A")
       setCoursesData({ selectedCourses: [], totalAttempted: 0, totalEarned: 0, totalQualityPoints: 0, gpa: "N/A" })
-      setPrintDate("N/A")
+      setPrintDate(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
       setTranscriptNo("Transcript No. N/A")
       setVerificationCode("N/A")
       setAcademicStanding("N/A")
     }
-  }, [studentId, generateRandomDOB, generateCoursesData, generateDegreeProgress])
+  }, [studentId, generateCoursesData, generateDegreeProgress])
 
   // Error handling
   if (error) {
