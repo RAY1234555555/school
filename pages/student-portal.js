@@ -1,1065 +1,1125 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/router"
 import Head from "next/head"
-import Script from "next/script"
-import { useEffect, useState, useCallback } from "react"
+import Link from "next/link"
 import { parse } from "cookie"
-import { DateTime } from "luxon"
 
-// --- fetchGoogleUser Helper (Remains the same) ---
+// --- fetchGoogleUser Helper (Same as in student-card.js) ---
 async function fetchGoogleUser(email) {
-  console.log(`[fetchGoogleUser - Transcript] Attempting for: ${email}`)
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REFRESH_TOKEN) {
-    console.error("[fetchGoogleUser - Transcript] Missing Google OAuth ENV VARS!")
-    return null
+  console.log(`[fetchGoogleUser - Portal] Attempting to get refresh token for: ${email}`)
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN, // Critical: Must be valid!
+      grant_type: "refresh_token",
+    }),
+  })
+
+  if (!tokenRes.ok) {
+    const errorBody = await tokenRes.text()
+    console.error(`[fetchGoogleUser - Portal] Failed to refresh Google token: ${tokenRes.status}`, errorBody)
+    return null // Indicate failure
   }
-  try {
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-        grant_type: "refresh_token",
-      }),
-    })
-    if (!tokenRes.ok) {
-      const errorBody = await tokenRes.text()
-      console.error(`[fetchGoogleUser - Transcript] Token Refresh Fail: ${tokenRes.status}`, errorBody)
-      return null
-    }
-    const { access_token } = await tokenRes.json()
-    console.log(`[fetchGoogleUser - Transcript] Token OK. Fetching user...`)
-    const userRes = await fetch(
-      `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
-      { headers: { Authorization: `Bearer ${access_token}` } },
-    )
-    if (!userRes.ok) {
-      const errorBody = await userRes.text()
-      console.error(`[fetchGoogleUser - Transcript] User Fetch Fail: ${userRes.status}`, errorBody)
-      return null
-    }
-    console.log(`[fetchGoogleUser - Transcript] User OK.`)
-    return await userRes.json()
-  } catch (error) {
-    console.error("[fetchGoogleUser - Transcript] Network/Other Error:", error)
-    return null
+
+  const { access_token } = await tokenRes.json()
+  console.log(`[fetchGoogleUser - Portal] Got new access token. Fetching user data...`)
+
+  const userRes = await fetch(
+    `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
+    { headers: { Authorization: `Bearer ${access_token}` } },
+  )
+
+  if (!userRes.ok) {
+    const errorBody = await userRes.text()
+    console.error(`[fetchGoogleUser - Portal] Failed to fetch Google user data: ${userRes.status}`, errorBody)
+    return null // Indicate failure
   }
+  console.log(`[fetchGoogleUser - Portal] Successfully fetched user data.`)
+  return await userRes.json()
 }
 
-// --- getServerSideProps (Remains the same) ---
+// --- getServerSideProps (Logic mirrored from student-card.js) ---
 export async function getServerSideProps({ req }) {
-  console.log("[getServerSideProps - Transcript] Starting...")
+  console.log("[getServerSideProps - Portal] Starting...")
   const cookies = parse(req.headers.cookie || "")
+
   const oauthUsername = cookies.oauthUsername || null
+  // *** Prioritize reading student ID from cookie ***
   const studentIdFromCookie = cookies.oauthStudentId || cookies.oauthUserId || null
   const oauthFullNameFromCookie = cookies.oauthFullName || null
   const trustLevel = Number.parseInt(cookies.oauthTrustLevel || "0", 10)
 
-  console.log("[getServerSideProps - Transcript] Cookies:", cookies)
+  console.log("[getServerSideProps - Portal] Cookies parsed:", cookies)
 
+  // Authentication check
   if (!oauthUsername || trustLevel < 3) {
-    console.log("[getServerSideProps - Transcript] Redirect: Auth Fail.")
+    // Keep appropriate trust level check
+    console.log("[getServerSideProps - Portal] Redirecting: No username or insufficient trust.")
     return { redirect: { destination: "/", permanent: false } }
   }
 
+  // Construct email
   const rawDom = process.env.EMAIL_DOMAIN
   const domain = rawDom && rawDom.startsWith("@") ? rawDom : "@" + (rawDom || "kzxy.edu.kg")
   const studentEmail = oauthUsername.includes("@") ? oauthUsername : `${oauthUsername}${domain}`
 
-  console.log("[getServerSideProps - Transcript] Fetching Google User:", studentEmail)
-  const googleUser = await fetchGoogleUser(studentEmail)
+  console.log("[getServerSideProps - Portal] Attempting fetchGoogleUser for:", studentEmail)
 
-  let fullName,
-    emailToUse,
-    finalStudentId,
-    fetchError = null
+  // Fetch data from Google
+  let googleUser
+  let fetchError = null
+  try {
+    googleUser = await fetchGoogleUser(studentEmail)
+  } catch (error) {
+    console.error("[getServerSideProps - Portal] Error during fetchGoogleUser call:", error)
+    fetchError = "Failed to communicate with Google services."
+    googleUser = null
+  }
 
+  // --- Handle Failure to Fetch Google Data (Use Cookie Fallback) ---
   if (!googleUser) {
-    console.warn("[getServerSideProps - Transcript] Fetch Fail. Fallback.")
-    fetchError = "Could not refresh data from Google."
-    fullName = oauthFullNameFromCookie
-    emailToUse = studentEmail
-    finalStudentId = studentIdFromCookie
-  } else {
-    console.log("[getServerSideProps - Transcript] Fetch OK.")
-    fullName = googleUser.name
-      ? `${googleUser.name.givenName || ""} ${googleUser.name.familyName || ""}`.trim()
-      : oauthFullNameFromCookie
-    emailToUse = googleUser.primaryEmail || studentEmail
-    finalStudentId = studentIdFromCookie || googleUser.id
-  }
-
-  if (!finalStudentId) {
-    console.error("[getServerSideProps - Transcript] Error: ID Missing.")
-    return { props: { error: "Student ID missing." } }
-  }
-  if (!fullName) {
-    fullName = "Student"
-  }
-
-  console.log("[getServerSideProps - Transcript] Props Data:", { fullName, emailToUse, finalStudentId })
-
-  return { props: { fullName, studentEmail: emailToUse, studentId: finalStudentId, error: null, fetchError } }
-}
-
-// --- Redesigned Transcript Component based on ASU template ---
-export default function Transcript({ fullName, studentEmail, studentId, error, fetchError }) {
-  // State for transcript data
-  const [coursesData, setCoursesData] = useState({
-    selectedCourses: [],
-    totalAttempted: 0,
-    totalEarned: 0,
-    totalQualityPoints: 0,
-    gpa: "0.00",
-  })
-  const [dateOfBirth, setDateOfBirth] = useState("")
-  const [printDate, setPrintDate] = useState("")
-  const [transcriptNo, setTranscriptNo] = useState("")
-  const [verificationCode, setVerificationCode] = useState("")
-  const [academicStanding, setAcademicStanding] = useState("Good Standing")
-  const [degreeProgress, setDegreeProgress] = useState([])
-  const [currentTerm, setCurrentTerm] = useState("")
-
-  // Helpers remain the same
-  const seededRandom = useCallback((seed) => {
-    const x = Math.sin(seed) * 10000
-    return x - Math.floor(x)
-  }, [])
-
-  const generateRandomDOB = useCallback(
-    (seed) => {
-      const random = (offset) => seededRandom(seed + offset)
-      const baseYear = 1998 + Math.floor(random(50) * 8)
-      const m = Math.floor(random(51) * 12)
-      const d = 1 + Math.floor(random(52) * 27)
-      const dob = new Date(baseYear, m, d)
-      return dob.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-    },
-    [seededRandom],
-  )
-
-  // Updated course pool with more Confucius Institute appropriate courses
-  const confuciusCoursePool = [
-    { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
-    { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
-    { id: "CHN103", title: "Elementary Chinese Writing", credits: 3.0 },
-    { id: "CHN104", title: "Elementary Chinese Listening", credits: 3.0 },
-    { id: "CHN201", title: "Intermediate Chinese Speaking", credits: 3.0 },
-    { id: "CHN202", title: "Intermediate Chinese Reading", credits: 3.0 },
-    { id: "CHN203", title: "Intermediate Chinese Writing", credits: 3.0 },
-    { id: "CHN204", title: "Intermediate Chinese Listening", credits: 3.0 },
-    { id: "CHN301", title: "Advanced Chinese Grammar", credits: 3.0 },
-    { id: "CHN302", title: "Advanced Chinese Composition", credits: 3.0 },
-    { id: "CHN303", title: "Business Chinese", credits: 3.0 },
-    { id: "CHN304", title: "Chinese for Academic Purposes", credits: 3.0 },
-    { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
-    { id: "CUL110", title: "Chinese Festivals and Customs", credits: 2.0 },
-    { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0 },
-    { id: "CUL130", title: "Chinese Tea Culture", credits: 2.0 },
-    { id: "CUL200", title: "Ancient Chinese Literature", credits: 3.0 },
-    { id: "CUL210", title: "Chinese Philosophy Introduction", credits: 3.0 },
-    { id: "CUL220", title: "Chinese Traditional Medicine", credits: 2.0 },
-    { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
-    { id: "CUL240", title: "Chinese Painting Basics", credits: 1.0 },
-    { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
-    { id: "CUL260", title: "Chinese Film and Media", credits: 3.0 },
-    { id: "HIS100", title: "Chinese History Overview", credits: 3.0 },
-    { id: "HIS110", title: "Modern Chinese History", credits: 3.0 },
-    { id: "HIS120", title: "Chinese Dynasties", credits: 3.0 },
-    { id: "GEO100", title: "Chinese Geography", credits: 3.0 },
-    { id: "POL100", title: "Chinese Politics and Law", credits: 3.0 },
-    { id: "ECO100", title: "Chinese Economic Development", credits: 3.0 },
-    { id: "LIT100", title: "Modern Chinese Literature", credits: 3.0 },
-  ]
-
-  // Updated to generate random courses for each session
-  const generateCoursesData = useCallback(
-    (studentIdSeed) => {
-      const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
-      const gpaPoints = {
-        A: 4.0,
-        "A-": 3.7,
-        "B+": 3.3,
-        B: 3.0,
-        "B-": 2.7,
-        "C+": 2.3,
-        C: 2.0,
-        "C-": 1.7,
-        "D+": 1.3,
-        D: 1.0,
-        W: 0,
-      }
-
-      const seed = Number.parseInt(studentIdSeed, 10) || Math.floor(Math.random() * 100000)
-      const random = (offset) => seededRandom(seed + offset)
-      const selectedCourses = []
-      let totalAttempted = 0,
-        totalEarned = 0,
-        totalQualityPoints = 0
-
-      // Generate realistic academic terms
-      const currentDate = new Date()
-      const currentYear = currentDate.getFullYear()
-      const currentMonth = currentDate.getMonth() + 1
-
-      // Determine current term
-      let currentTermSeason, currentTermYear
-      if (currentMonth >= 8) {
-        // Fall term (Aug-Dec)
-        currentTermSeason = "Fall"
-        currentTermYear = currentYear
-      } else if (currentMonth >= 1 && currentMonth <= 5) {
-        // Spring term (Jan-May)
-        currentTermSeason = "Spring"
-        currentTermYear = currentYear
-      } else {
-        // Summer term (Jun-Jul)
-        currentTermSeason = "Summer"
-        currentTermYear = currentYear
-      }
-
-      const currentTermText = `${currentTermSeason} ${currentTermYear}`
-      setCurrentTerm(currentTermText)
-
-      // Generate past terms (going back 2 years max)
-      const terms = []
-      const startYear = currentYear - 2
-
-      for (let year = startYear; year <= currentYear; year++) {
-        // Add Fall term
-        terms.push(`Fall ${year}`)
-
-        // Add Spring term of next year
-        if (year < currentYear || (year === currentYear && currentMonth > 5)) {
-          terms.push(`Spring ${year + 1}`)
-        }
-
-        // Add Summer term
-        if (year < currentYear || (year === currentYear && currentMonth > 7)) {
-          terms.push(`Summer ${year}`)
-        }
-      }
-
-      // Sort terms chronologically and limit to most recent terms
-      terms.sort((a, b) => {
-        const yearA = Number.parseInt(a.split(" ")[1])
-        const yearB = Number.parseInt(b.split(" ")[1])
-        const seasonA = a.split(" ")[0]
-        const seasonB = b.split(" ")[0]
-
-        if (yearA !== yearB) return yearA - yearB
-
-        const seasonOrder = { Spring: 1, Summer: 2, Fall: 3 }
-        return seasonOrder[seasonA] - seasonOrder[seasonB]
-      })
-
-      // Take only the most recent 4-6 terms
-      const numTerms = 4 + Math.floor(random(100) * 3) // 4-6 terms
-      const recentTerms = terms.slice(-numTerms)
-
-      // For each term, generate 3-5 courses
-      const usedCourseIndices = new Set()
-
-      recentTerms.forEach((term, termIndex) => {
-        const coursesPerTerm = 3 + Math.floor(random(termIndex * 10) * 3) // 3-5 courses per term
-        const termCourses = []
-
-        // Try to add unique courses up to coursesPerTerm
-        for (let i = 0; i < coursesPerTerm; i++) {
-          // Find an unused course
-          let attempts = 0
-          let courseIdx
-
-          do {
-            courseIdx = Math.floor(random(termIndex * 100 + i * 10) * confuciusCoursePool.length)
-            attempts++
-          } while (usedCourseIndices.has(courseIdx) && attempts < 30)
-
-          // If we found a new course or tried enough times, use it
-          if (!usedCourseIndices.has(courseIdx) || attempts >= 30) {
-            if (!usedCourseIndices.has(courseIdx)) {
-              usedCourseIndices.add(courseIdx)
-            }
-
-            const course = confuciusCoursePool[courseIdx]
-
-            // Generate grade based on student ID and course
-            const gradeRoll = random(termIndex * 100 + i * 10 + 1)
-            // Weight grades to be more realistic (more common to get B range)
-            let gradeIdx
-            if (gradeRoll < 0.15)
-              gradeIdx = 0 // A
-            else if (gradeRoll < 0.25)
-              gradeIdx = 1 // A-
-            else if (gradeRoll < 0.4)
-              gradeIdx = 2 // B+
-            else if (gradeRoll < 0.6)
-              gradeIdx = 3 // B
-            else if (gradeRoll < 0.7)
-              gradeIdx = 4 // B-
-            else if (gradeRoll < 0.8)
-              gradeIdx = 5 // C+
-            else if (gradeRoll < 0.9)
-              gradeIdx = 6 // C
-            else if (gradeRoll < 0.95)
-              gradeIdx = 7 // C-
-            else if (gradeRoll < 0.97)
-              gradeIdx = 8 // D+
-            else if (gradeRoll < 0.99)
-              gradeIdx = 9 // D
-            else gradeIdx = 10 // W (rare)
-
-            const grade = grades[gradeIdx]
-            const credit = course.credits
-            const isEarned = grade !== "W"
-            const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
-
-            termCourses.push({
-              term,
-              courseId: course.id,
-              title: course.title,
-              grade,
-              credit,
-            })
-
-            totalAttempted += credit
-            if (isEarned) {
-              totalEarned += credit
-              totalQualityPoints += qualityPts
-            }
-          }
-        }
-
-        if (termCourses.length > 0) {
-          selectedCourses.push({ term, courses: termCourses })
-        }
-      })
-
-      const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
-      return { selectedCourses, totalAttempted, totalEarned, totalQualityPoints, gpa }
-    },
-    [seededRandom],
-  )
-
-  // Generate degree progress data with randomized values
-  const generateDegreeProgress = useCallback(
-    (totalEarned, seed) => {
-      const random = (offset) => seededRandom(seed + offset)
-
-      // Total program requirement is fixed at 150 credits
-      const totalRequired = 150.0
-
-      // Define requirements with randomized proportions
-      const requirementProportions = [
-        { name: "Chinese Language Core", proportion: 0.3 + random(1) * 0.1 }, // 30-40%
-        { name: "Culture & History", proportion: 0.2 + random(2) * 0.1 }, // 20-30%
-        { name: "General Studies", proportion: 0.2 + random(3) * 0.1 }, // 20-30%
-        { name: "Electives", proportion: 0.1 + random(4) * 0.1 }, // 10-20%
-      ]
-
-      // Normalize proportions to ensure they sum to 1
-      const totalProportion = requirementProportions.reduce((sum, req) => sum + req.proportion, 0)
-      requirementProportions.forEach((req) => (req.proportion = req.proportion / totalProportion))
-
-      // Calculate required credits for each category
-      const requirements = requirementProportions.map((req) => ({
-        name: req.name,
-        required: Math.round(totalRequired * req.proportion * 10) / 10, // Round to 1 decimal place
-      }))
-
-      // Adjust the last requirement to ensure total is exactly 150
-      const calculatedTotal = requirements.reduce((sum, req) => sum + req.required, 0)
-      const lastIndex = requirements.length - 1
-      requirements[lastIndex].required =
-        Math.round((requirements[lastIndex].required + (totalRequired - calculatedTotal)) * 10) / 10
-
-      // Distribute earned credits among requirements with some randomness
-      let remainingCredits = totalEarned
-      const inProgressCredits = random(10) * 10 // 0-10 credits in progress
-
-      const results = requirements.map((req, index) => {
-        // Allocate credits with some randomness
-        const maxAllocation = Math.min(remainingCredits, req.required)
-        const allocation = Math.round(maxAllocation * (0.7 + random(index * 5) * 0.6) * 10) / 10
-        remainingCredits -= allocation
-
-        // Allocate some in-progress credits
-        const inProgressAllocation = index === 0 ? Math.round(inProgressCredits * 10) / 10 : 0
-
-        const percentComplete = Math.round((allocation / req.required) * 100)
-        const status =
-          percentComplete === 100
-            ? "Complete"
-            : percentComplete > 0
-              ? `In Progress (${percentComplete}%)`
-              : "Not Started (0%)"
-
-        return {
-          ...req,
-          completed: allocation.toFixed(2),
-          inProgress: inProgressAllocation.toFixed(2),
-          remaining: (req.required - allocation).toFixed(2),
-          status,
-        }
-      })
-
-      // Add total row
-      const totalCompleted = results.reduce((sum, req) => sum + Number.parseFloat(req.completed), 0)
-      const totalInProgress = results.reduce((sum, req) => sum + Number.parseFloat(req.inProgress), 0)
-      const totalRemaining = totalRequired - totalCompleted
-      const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
-      const totalStatus =
-        totalPercentComplete === 100
-          ? "Complete"
-          : totalPercentComplete > 0
-            ? `In Progress (${totalPercentComplete}%)`
-            : "Not Started (0%)"
-
-      results.push({
-        name: "Total Program Requirements",
-        required: totalRequired.toFixed(2),
-        completed: totalCompleted.toFixed(2),
-        inProgress: totalInProgress.toFixed(2),
-        remaining: totalRemaining.toFixed(2),
-        status: totalStatus,
-      })
-
-      return results
-    },
-    [seededRandom],
-  )
-
-  // useEffect to initialize data
-  useEffect(() => {
-    if (studentId && studentId !== "ERRORID") {
-      const dobSeed = Number.parseInt(studentId, 10) || 12345
-      setDateOfBirth(generateRandomDOB(dobSeed))
-
-      const courseData = generateCoursesData(studentId)
-      setCoursesData(courseData)
-
-      // Generate degree progress with randomized values
-      setDegreeProgress(generateDegreeProgress(courseData.totalEarned, dobSeed))
-
-      const now = DateTime.now().setZone("America/New_York")
-      setPrintDate(now.toFormat("MMMM dd, yyyy"))
-
-      // Generate transcript number and verification code
-      setTranscriptNo(`CI-TR-${now.toFormat("yyyyMMdd")}${studentId.substring(0, 2)}`)
-      setVerificationCode(`CI${now.toFormat("yyMMdd")}-${studentId.substring(0, 6)}-TR`)
-
-      // Set academic standing based on GPA
-      const gpaNum = Number.parseFloat(courseData.gpa)
-      if (gpaNum >= 3.5) {
-        setAcademicStanding("Excellent Standing")
-      } else if (gpaNum >= 3.0) {
-        setAcademicStanding("Good Standing")
-      } else if (gpaNum >= 2.0) {
-        setAcademicStanding("Satisfactory")
-      } else if (gpaNum > 0) {
-        setAcademicStanding("Academic Probation")
-      } else {
-        setAcademicStanding("Not Started")
+    console.log("[getServerSideProps - Portal] fetchGoogleUser failed or returned null.")
+    if (studentIdFromCookie && oauthFullNameFromCookie) {
+      console.warn("[getServerSideProps - Portal] Falling back to cookie data due to fetch failure.")
+      return {
+        props: {
+          initialFullName: oauthFullNameFromCookie,
+          initialEmail: studentEmail,
+          initialStudentId: studentIdFromCookie, // Use ID from cookie
+          fetchError: "Could not refresh data from Google; showing last known info.",
+        },
       }
     } else {
-      // Set defaults if ID is missing
-      setDateOfBirth("N/A")
-      setCoursesData({ selectedCourses: [], totalAttempted: 0, totalEarned: 0, totalQualityPoints: 0, gpa: "N/A" })
-      setPrintDate("N/A")
-      setTranscriptNo("Transcript No. N/A")
-      setVerificationCode("N/A")
-      setAcademicStanding("N/A")
+      // If no fallback possible
+      console.log(
+        "[getServerSideProps - Portal] Redirecting: fetchGoogleUser failed and no sufficient cookie fallback.",
+      )
+      return { redirect: { destination: "/?error=profile_fetch_failed_no_fallback", permanent: false } }
     }
-  }, [studentId, generateRandomDOB, generateCoursesData, generateDegreeProgress])
+  }
 
-  // Error handling
+  // --- Extract Data (Prioritize Google for Name/Email, Cookie for ID) ---
+  console.log("[getServerSideProps - Portal] Google user data fetched successfully.")
+  const fullName = googleUser.name
+    ? `${googleUser.name.givenName || ""} ${googleUser.name.familyName || ""}`.trim()
+    : oauthFullNameFromCookie || "Name Missing"
+  const emailFromGoogle = googleUser.primaryEmail || studentEmail
+
+  // *** Student ID: Use cookie ID first, then Google ID as last resort ***
+  const finalStudentId = studentIdFromCookie || googleUser.id || null
+
+  if (!finalStudentId) {
+    console.error("[getServerSideProps - Portal] Error: Student ID is missing after Google fetch and cookie check.")
+    return { props: { error: "Student ID is missing, cannot display portal." } }
+  }
+
+  console.log("[getServerSideProps - Portal] Data prepared:", { fullName, emailFromGoogle, finalStudentId })
+
+  // Pass data as props
+  return {
+    props: {
+      initialFullName: fullName,
+      initialEmail: emailFromGoogle,
+      initialStudentId: finalStudentId,
+      fetchError: null, // Successful fetch
+    },
+  }
+}
+
+export default function StudentPortal({ initialFullName, initialEmail, initialStudentId, error, fetchError }) {
+  const router = useRouter()
+  const [currentSemester, setCurrentSemester] = useState("")
+  const [currentYear, setCurrentYear] = useState("")
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    let semesterText = ""
+    if (month >= 9 || month <= 2) semesterText = `${year} 秋冬`
+    else if (month >= 3 && month <= 8) semesterText = `${year} 春夏`
+    else semesterText = `${year}`
+    setCurrentSemester(semesterText)
+    setCurrentYear(year)
+  }, [])
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch("/api/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!response.ok) {
+        throw new Error("Deletion failed")
+      }
+      alert("Account deleted successfully.")
+      router.push("/api/logout")
+    } catch (err) {
+      console.error("Error deleting account:", err)
+      alert("An error occurred while deleting the account.")
+      setIsDeleting(false)
+    }
+  }
+
+  const handleLogout = () => {
+    setIsLoggingOut(true)
+    fetch("/api/logout", {
+      method: "POST",
+    }).then(() => {
+      router.push("/")
+    })
+  }
+
   if (error) {
     return (
-      <div style={{ padding: "40px", textAlign: "center", color: "red", fontFamily: "Arial, sans-serif" }}>
-        <h2>Error Loading Transcript</h2>
-        <p>{error}</p>
-        <a href="/student-portal" style={{ color: "#007bff", textDecoration: "underline", marginRight: "15px" }}>
-          Back to Portal
-        </a>
-        <a href="/" style={{ color: "#007bff", textDecoration: "underline" }}>
-          Go to Login
-        </a>
+      <div className="error-page">
+        <div className="error-container">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="error-icon"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <h1>无法加载门户</h1>
+          <p>{error}</p>
+          <div className="error-actions">
+            <a href="/student-portal" className="btn btn-primary">
+              重试
+            </a>
+            <a href="/" className="btn btn-secondary">
+              返回登录
+            </a>
+          </div>
+        </div>
       </div>
     )
   }
 
-  const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
-  const degreeProgressData = generateDegreeProgress(coursesData.totalEarned)
-
   return (
     <>
       <Head>
-        <title>Academic Transcript - Confucius Institute</title>
-        <meta name="description" content="Confucius Institute Official Academic Transcript" />
+        <title>学生仪表板 | 孔子学院</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
       </Head>
 
-      {/* Keep JsBarcode script */}
-      <Script
-        src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          if (window.JsBarcode && document.getElementById("barcode-svg") && displaySid !== "N/A") {
-            try {
-              window.JsBarcode("#barcode-svg", displaySid, {
-                format: "CODE128",
-                lineColor: "#000",
-                width: 2,
-                height: 50,
-                displayValue: true,
-                textMargin: 5,
-              })
-            } catch (e) {
-              console.error("JsBarcode error:", e)
-            }
-          } else if (displaySid === "N/A") {
-            console.warn("Student ID missing, cannot generate barcode.")
-          }
-        }}
-        onError={(e) => {
-          console.error("Failed to load JsBarcode script:", e)
-        }}
-      />
-
-      <div className="watermark">CONFUCIUS INSTITUTE</div>
-
-      <div className="transcript">
-        <div className="header">
-          <div className="logo-container">
+      <div className="portal-container">
+        {/* Header */}
+        <header className="portal-header">
+          <div className="logo-section">
             <img
               src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
-              alt="Confucius Institute Logo"
-              className="logo"
+              alt="孔子学院"
+              className="portal-logo"
             />
-            <div className="institute-name">
-              <h2>CONFUCIUS INSTITUTE</h2>
-              <p>at Kyrgyz National University</p>
+            <h1 className="portal-title">孔子学院学生门户</h1>
+          </div>
+          <div className="user-section">
+            <div className="user-info">
+              <span className="user-name">{initialFullName || "学生"}</span>
+              <span className="user-email">{initialEmail || "加载中..."}</span>
+            </div>
+            <button onClick={handleLogout} disabled={isLoggingOut} className="logout-button">
+              {isLoggingOut ? "注销中..." : "注销"}
+            </button>
+          </div>
+        </header>
+
+        {/* Alert Banner */}
+        {fetchError && (
+          <div className="alert-banner">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{fetchError}</span>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <main className="portal-content">
+          {/* Welcome Section */}
+          <section className="welcome-section">
+            <h2>欢迎, {initialFullName || "学生"}!</h2>
+            <p>以下是您需要了解的 {currentSemester || "本学期"} 信息。</p>
+          </section>
+
+          {/* Student Info Card */}
+          <section className="info-card">
+            <h3 className="card-title">学生信息</h3>
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-label">名字</span>
+                <span className="info-value">{initialFullName || "加载中..."}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">学生证</span>
+                <span className="info-value highlight">{initialStudentId || "加载中..."}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">电子邮件</span>
+                <span className="info-value">{initialEmail || "加载中..."}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">学期</span>
+                <span className="info-value">{currentSemester || "计算中..."}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">程序</span>
+                <span className="info-value">汉语学习项目</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Quick Links */}
+          <section className="quick-links">
+            <h3 className="section-title">快速访问</h3>
+            <div className="links-grid">
+              <Link href="/student-card" legacyBehavior>
+                <a className="link-card">
+                  <div className="link-icon blue">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                      <line x1="2" y1="10" x2="22" y2="10"></line>
+                    </svg>
+                  </div>
+                  <div className="link-text">
+                    <h4>学生证</h4>
+                    <p>查看您的数字学生证</p>
+                  </div>
+                </a>
+              </Link>
+
+              <Link href="/transcript" legacyBehavior>
+                <a className="link-card">
+                  <div className="link-icon green">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  </div>
+                  <div className="link-text">
+                    <h4>成绩单</h4>
+                    <p>查看您的学术记录</p>
+                  </div>
+                </a>
+              </Link>
+
+              <Link href="/admission-letter" legacyBehavior>
+                <a className="link-card">
+                  <div className="link-icon purple">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                  </div>
+                  <div className="link-text">
+                    <h4>录取通知书</h4>
+                    <p>查看您的录取通知书</p>
+                  </div>
+                </a>
+              </Link>
+
+              <a
+                href={`https://mail.google.com/a/${
+                  initialEmail?.split("@")[1] || "kzxy.edu.kg"
+                }?Email=${encodeURIComponent(initialEmail || "")}`}
+                className="link-card"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <div className="link-icon red">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                </div>
+                <div className="link-text">
+                  <h4>电子邮件</h4>
+                  <p>访问您的学生电子邮件</p>
+                </div>
+              </a>
+
+              <Link href="/aliases" legacyBehavior>
+                <a className="link-card">
+                  <div className="link-icon orange">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                  </div>
+                  <div className="link-text">
+                    <h4>电子邮件别名</h4>
+                    <p>管理其他电子邮件地址</p>
+                  </div>
+                </a>
+              </Link>
+
+              <Link href="/reset-password" legacyBehavior>
+                <a className="link-card">
+                  <div className="link-icon teal">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </div>
+                  <div className="link-text">
+                    <h4>重置密码</h4>
+                    <p>更改您的账户密码</p>
+                  </div>
+                </a>
+              </Link>
+            </div>
+          </section>
+
+          {/* External Tools */}
+          <section className="external-tools">
+            <h3 className="section-title">外部工具</h3>
+            <div className="tools-grid">
+              <a href="https://account.adobe.com/" className="tool-card" target="_blank" rel="noopener noreferrer">
+                <div className="tool-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  </svg>
+                </div>
+                <div className="tool-text">
+                  <h4>Adobe Express</h4>
+                  <p>创建图形、视频和网页</p>
+                </div>
+              </a>
+
+              <a href="https://www.canva.com/login" className="tool-card" target="_blank" rel="noopener noreferrer">
+                <div className="tool-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+                <div className="tool-text">
+                  <h4>Canva 餐厅</h4>
+                  <p>设计演示文稿和图形</p>
+                </div>
+              </a>
+            </div>
+          </section>
+
+          {/* Account Management */}
+          <section className="account-management">
+            <h3 className="section-title">账户管理</h3>
+            <button onClick={() => setIsDeleteModalOpen(true)} className="delete-account-button">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              删除账户
+            </button>
+          </section>
+        </main>
+
+        {/* Footer */}
+        <footer className="portal-footer">
+          <p>
+            © {currentYear} 孔子学院 | <a href="https://kzxy.edu.kg">kzxy.edu.kg</a>
+          </p>
+        </footer>
+
+        {/* Delete Account Modal */}
+        {isDeleteModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>删除账户</h3>
+                <button className="modal-close" onClick={() => setIsDeleteModalOpen(false)}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="modal-icon warning">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+                <h4>您确定要删除您的账户吗？</h4>
+                <p>此操作是永久性的，无法撤消。您的所有数据，包括电子邮件和个人信息，将被永久删除。</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>
+                  取消
+                </button>
+                <button className="btn btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? "处理中..." : "删除账户"}
+                </button>
+              </div>
             </div>
           </div>
-          <h1 className="title">OFFICIAL ACADEMIC TRANSCRIPT</h1>
-          <p className="print-date">Print Date: {printDate}</p>
-
-          <div className="verification-section">
-            <p>Document ID: {transcriptNo}</p>
-            <p>
-              Verification Code: <span className="verification-code">{verificationCode}</span>
-            </p>
-            <p>Verify at: kzxy.edu.kg</p>
-          </div>
-        </div>
-
-        <div className="section">
-          <div className="section-title">STUDENT INFORMATION</div>
-          <table className="student-info">
-            <tbody>
-              <tr>
-                <td>
-                  <strong>Full Name</strong>
-                </td>
-                <td>{fullName || "N/A"}</td>
-                <td>
-                  <strong>Student ID</strong>
-                </td>
-                <td>{displaySid}</td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Date of Birth</strong>
-                </td>
-                <td>{dateOfBirth || "N/A"}</td>
-                <td>
-                  <strong>Email</strong>
-                </td>
-                <td>{studentEmail || "N/A"}</td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Program</strong>
-                </td>
-                <td colSpan="3">Chinese Language Studies</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="section">
-          <div className="section-title">ACADEMIC SUMMARY</div>
-          <table>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>Institutional GPA</strong>
-                </td>
-                <td>{coursesData.gpa}</td>
-                <td>
-                  <strong>Total Credits Attempted</strong>
-                </td>
-                <td>{coursesData.totalAttempted.toFixed(1)}</td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Academic Standing</strong>
-                </td>
-                <td>{academicStanding}</td>
-                <td>
-                  <strong>Total Credits Earned</strong>
-                </td>
-                <td>{coursesData.totalEarned.toFixed(1)}</td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Total Quality Points</strong>
-                </td>
-                <td>{coursesData.totalQualityPoints.toFixed(2)}</td>
-                <td>
-                  <strong>Current Semester</strong>
-                </td>
-                <td>{currentTerm}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="section">
-          <div className="section-title">CONFUCIUS INSTITUTE AT KYRGYZ NATIONAL UNIVERSITY</div>
-
-          {coursesData.selectedCourses.length === 0 ? (
-            <p className="term-summary">No courses completed yet.</p>
-          ) : (
-            coursesData.selectedCourses.map((termData, termIdx) => (
-              <div key={termIdx}>
-                <div className="term-title">{termData.term}</div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Course ID</th>
-                      <th>Course Title</th>
-                      <th>Grade</th>
-                      <th>Credits</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {termData.courses.map((course, courseIdx) => (
-                      <tr key={courseIdx}>
-                        <td>{course.courseId}</td>
-                        <td>{course.title}</td>
-                        <td>{course.grade}</td>
-                        <td>{course.credit.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="term-summary">
-                  Term Credits: {termData.courses.reduce((sum, course) => sum + course.credit, 0).toFixed(1)}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="section">
-          <div className="section-title">DEGREE PROGRESS</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Requirement</th>
-                <th>Required</th>
-                <th>Completed</th>
-                <th>In Progress</th>
-                <th>Remaining</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {degreeProgressData.map((req, index) => (
-                <tr key={index}>
-                  <td>{req.name}</td>
-                  <td>{req.required}</td>
-                  <td>{req.completed}</td>
-                  <td>{req.inProgress}</td>
-                  <td>{req.remaining}</td>
-                  <td>{req.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="section">
-          <div className="section-title">GRADING SYSTEM</div>
-          <table className="grading-system">
-            <thead>
-              <tr>
-                <th>Grade</th>
-                <th>Quality Points</th>
-                <th>Grade</th>
-                <th>Quality Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>A</td>
-                <td>4.0</td>
-                <td>C+</td>
-                <td>2.3</td>
-              </tr>
-              <tr>
-                <td>A-</td>
-                <td>3.7</td>
-                <td>C</td>
-                <td>2.0</td>
-              </tr>
-              <tr>
-                <td>B+</td>
-                <td>3.3</td>
-                <td>C-</td>
-                <td>1.7</td>
-              </tr>
-              <tr>
-                <td>B</td>
-                <td>3.0</td>
-                <td>D+</td>
-                <td>1.3</td>
-              </tr>
-              <tr>
-                <td>B-</td>
-                <td>2.7</td>
-                <td>D</td>
-                <td>1.0</td>
-              </tr>
-              <tr>
-                <td colSpan="2"></td>
-                <td>W</td>
-                <td>Withdrawal (No point value)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="signatures">
-          <div className="signature">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/registrar_signature.png-jGPP68ItD24zryNlBDleit1S1QORmp.jpeg"
-              alt="Registrar Signature"
-              className="signature-img"
-            />
-            <p>Frank Mavish Denny</p>
-            <p className="title">University Registrar</p>
-          </div>
-          <div className="signature">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/registrar_signature.png-jGPP68ItD24zryNlBDleit1S1QORmp.jpeg"
-              alt="Dean Signature"
-              className="signature-img"
-            />
-            <p>Frank Mavish Denny</p>
-            <p className="title">Dean of Academic Affairs</p>
-          </div>
-        </div>
-
-        <div className="barcode-container">
-          {displaySid !== "N/A" ? (
-            <svg id="barcode-svg" width="300" height="70"></svg>
-          ) : (
-            <p className="barcode-placeholder">Barcode N/A (ID Missing)</p>
-          )}
-        </div>
-
-        <div className="footer">
-          <p>This is an official academic transcript issued by Confucius Institute at Kyrgyz National University.</p>
-          <p>
-            Document ID: {transcriptNo} • Generated: {printDate}
-          </p>
-          <p>To verify the authenticity of this document, please visit kzxy.edu.kg</p>
-        </div>
+        )}
       </div>
 
       <style jsx>{`
-        body {
+        /* Base Styles */
+        :global(body) {
           margin: 0;
-          padding: 20px;
-          background: #f5f5f5;
-          font-family: 'Montserrat', Arial, sans-serif;
+          padding: 0;
+          font-family: 'Noto Sans SC', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          background-color: #f5f7fa;
           color: #333;
-          line-height: 1.4;
+          line-height: 1.5;
         }
-        
-        .watermark {
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%) rotate(-45deg);
-          font-size: 120px;
-          color: rgba(0, 102, 51, 0.03);
-          pointer-events: none;
-          white-space: nowrap;
-          z-index: 1000;
-        }
-        
-        .transcript {
-          max-width: 800px;
+
+        /* Portal Container */
+        .portal-container {
+          max-width: 1200px;
           margin: 0 auto;
-          background: #fff;
-          padding: 30px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          padding: 20px;
         }
-        
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-          border-bottom: 3px solid #006633;
-          padding-bottom: 20px;
-          position: relative;
-        }
-        
-        .logo-container {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 15px;
-        }
-        
-        .logo {
-          height: 80px;
-          width: auto;
-          margin-right: 15px;
-          background-color: white;
-          padding: 5px;
-          border-radius: 5px;
-        }
-        
-        .institute-name {
-          text-align: left;
-        }
-        
-        .institute-name h2 {
-          margin: 0;
-          color: #006633;
-          font-size: 24px;
-          font-weight: bold;
-        }
-        
-        .institute-name p {
-          margin: 5px 0 0;
-          color: #333;
-          font-size: 16px;
-        }
-        
-        .title {
-          color: #006633;
-          margin: 10px 0;
-          font-size: 24px;
-          font-weight: bold;
-        }
-        
-        .print-date {
-          color: #666;
-          font-size: 0.9em;
-        }
-        
-        .verification-section {
-          text-align: center;
-          margin-top: 20px;
-          padding: 15px;
-          background: #f8f8f8;
-          border-radius: 8px;
-        }
-        
-        .verification-code {
-          font-family: monospace;
-          background: #fff;
-          padding: 4px 8px;
-          border-radius: 4px;
-          border: 1px solid #ddd;
-        }
-        
-        .section {
-          margin: 20px 0;
-        }
-        
-        .section-title {
-          background: #006633;
-          color: #fff;
-          padding: 8px 15px;
-          margin-bottom: 15px;
-          font-weight: bold;
-        }
-        
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 10px 0;
-        }
-        
-        th, td {
-          padding: 8px;
-          border: 1px solid #ddd;
-          font-size: 0.9em;
-        }
-        
-        th {
-          background: #006633;
-          color: #fff;
-          font-weight: bold;
-        }
-        
-        .student-info td {
-          width: 25%;
-        }
-        
-        .term-title {
-          background: #FFC72C;
-          color: #000;
-          padding: 8px 15px;
-          margin: 20px 0 10px;
-          font-weight: bold;
-        }
-        
-        .term-summary {
-          text-align: right;
-          font-weight: bold;
-          margin: 10px 0;
-          color: #006633;
-        }
-        
-        .signatures {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 2px solid #006633;
+
+        /* Header */
+        .portal-header {
+          background-color: #0056b3;
+          color: white;
+          padding: 20px;
+          border-radius: 10px;
+          margin-bottom: 20px;
           display: flex;
           justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        
-        .signature {
-          text-align: center;
-          width: 45%;
+
+        .logo-section {
+          display: flex;
+          align-items: center;
         }
-        
-        .signature-img {
-          max-width: 150px;
-          height: auto;
+
+        .portal-logo {
+          height: 50px;
+          margin-right: 15px;
+        }
+
+        .portal-title {
+          font-size: 24px;
+          margin: 0;
+          font-weight: 600;
+        }
+
+        .user-section {
+          display: flex;
+          align-items: center;
+        }
+
+        .user-info {
+          text-align: right;
+          margin-right: 15px;
+        }
+
+        .user-name {
+          display: block;
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        .user-email {
+          display: block;
+          font-size: 14px;
+          opacity: 0.9;
+        }
+
+        .logout-button {
+          background-color: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: none;
+          padding: 8px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: background-color 0.3s;
+        }
+
+        .logout-button:hover {
+          background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Alert Banner */
+        .alert-banner {
+          background-color: #fff3cd;
+          color: #856404;
+          padding: 12px 20px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        /* Main Content */
+        .portal-content {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+
+        /* Welcome Section */
+        .welcome-section {
+          background-color: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .welcome-section h2 {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: #0056b3;
+          font-size: 22px;
+        }
+
+        .welcome-section p {
+          margin: 0;
+          color: #666;
+        }
+
+        /* Info Card */
+        .info-card {
+          background-color: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-title {
+          margin-top: 0;
+          margin-bottom: 20px;
+          color: #0056b3;
+          font-size: 18px;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 10px;
+        }
+
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 20px;
+        }
+
+        .info-item {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .info-label {
+          font-size: 14px;
+          color: #666;
           margin-bottom: 5px;
         }
-        
-        .signature p {
-          color: #006633;
-          font-weight: bold;
-          margin: 5px 0;
+
+        .info-value {
+          font-size: 16px;
+          font-weight: 500;
         }
-        
-        .signature p.title {
-          font-weight: normal;
-          font-size: 14px;
-          color: #333;
+
+        .info-value.highlight {
+          color: #0056b3;
+          font-family: monospace;
         }
-        
-        .barcode-container {
-          text-align: center;
-          margin: 30px 0;
+
+        /* Quick Links */
+        .quick-links {
+          background-color: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
-        
-        .barcode-placeholder {
-          color: grey;
-          font-size: 12px;
-          margin-top: 5px;
-          height: 70px;
+
+        .section-title {
+          margin-top: 0;
+          margin-bottom: 20px;
+          color: #0056b3;
+          font-size: 18px;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 10px;
+        }
+
+        .links-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 15px;
+        }
+
+        .link-card {
+          display: flex;
+          align-items: center;
+          padding: 15px;
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          text-decoration: none;
+          color: inherit;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .link-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .link-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 25px;
           display: flex;
           align-items: center;
           justify-content: center;
+          margin-right: 15px;
+          flex-shrink: 0;
         }
-        
-        .footer {
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 2px solid #006633;
-          text-align: center;
+
+        .link-icon svg {
+          color: white;
+        }
+
+        .link-icon.blue {
+          background-color: #0056b3;
+        }
+
+        .link-icon.green {
+          background-color: #28a745;
+        }
+
+        .link-icon.red {
+          background-color: #dc3545;
+        }
+
+        .link-icon.purple {
+          background-color: #6f42c1;
+        }
+
+        .link-icon.orange {
+          background-color: #fd7e14;
+        }
+
+        .link-icon.teal {
+          background-color: #20c997;
+        }
+
+        .link-text h4 {
+          margin: 0 0 5px 0;
+          font-size: 16px;
+        }
+
+        .link-text p {
+          margin: 0;
+          font-size: 14px;
           color: #666;
         }
-        
-        tr:nth-child(even) {
-          background-color: #f9f9f9;
+
+        /* External Tools */
+        .external-tools {
+          background-color: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
-        
-        tr:hover {
-          background-color: #f5f5f5;
+
+        .tools-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 15px;
         }
-        
-        .grading-system {
+
+        .tool-card {
+          display: flex;
+          align-items: center;
+          padding: 15px;
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          text-decoration: none;
+          color: inherit;
+          transition: background-color 0.2s;
+        }
+
+        .tool-card:hover {
+          background-color: #e9ecef;
+        }
+
+        .tool-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 20px;
+          background-color: #e9ecef;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 15px;
+          flex-shrink: 0;
+        }
+
+        .tool-icon svg {
+          color: #495057;
+        }
+
+        .tool-text h4 {
+          margin: 0 0 5px 0;
+          font-size: 16px;
+        }
+
+        .tool-text p {
+          margin: 0;
+          font-size: 14px;
+          color: #666;
+        }
+
+        /* Account Management */
+        .account-management {
+          background-color: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .delete-account-button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background-color: #f8d7da;
+          color: #721c24;
+          border: none;
+          padding: 10px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: background-color 0.3s;
+        }
+
+        .delete-account-button:hover {
+          background-color: #f5c6cb;
+        }
+
+        /* Footer */
+        .portal-footer {
+          text-align: center;
+          margin-top: 30px;
+          padding: 20px;
+          color: #6c757d;
+          font-size: 14px;
+        }
+
+        .portal-footer a {
+          color: #0056b3;
+          text-decoration: none;
+        }
+
+        .portal-footer a:hover {
+          text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .modal {
+          background-color: white;
+          border-radius: 10px;
           width: 100%;
+          max-width: 500px;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+          overflow: hidden;
         }
-        
-        .grading-system td, .grading-system th {
-          width: 25%;
+
+        .modal-header {
+          padding: 15px 20px;
+          border-bottom: 1px solid #dee2e6;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .modal-header h3 {
+          margin: 0;
+          font-size: 18px;
+          color: #0056b3;
+        }
+
+        .modal-close {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #6c757d;
+          padding: 5px;
+        }
+
+        .modal-body {
+          padding: 20px;
           text-align: center;
         }
-        
-        @media print {
-          body {
-            background-color: #fff;
-            padding: 0;
-            margin: 0;
-          }
-          
-          .transcript {
-            box-shadow: none;
-            margin: 0;
-            max-width: 100%;
-            padding: 20px;
-            border: none;
-          }
-          
-          .watermark {
-            color: rgba(0, 102, 51, 0.03) !important;
-          }
+
+        .modal-icon.warning {
+          color: #dc3545;
+          margin-bottom: 15px;
         }
-        
+
+        .modal-body h4 {
+          margin: 0 0 10px 0;
+          font-size: 18px;
+          color: #dc3545;
+        }
+
+        .modal-body p {
+          margin: 0;
+          color: #6c757d;
+          line-height: 1.5;
+        }
+
+        .modal-footer {
+          padding: 15px 20px;
+          border-top: 1px solid #dee2e6;
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .btn {
+          padding: 8px 16px;
+          border-radius: 5px;
+          font-size: 14px;
+          cursor: pointer;
+          border: none;
+        }
+
+        .btn-secondary {
+          background-color: #6c757d;
+          color: white;
+        }
+
+        .btn-danger {
+          background-color: #dc3545;
+          color: white;
+        }
+
+        .btn:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        /* Responsive Styles */
         @media (max-width: 768px) {
-          .transcript {
-            padding: 15px;
-          }
-          
-          .logo-container {
+          .portal-header {
             flex-direction: column;
             text-align: center;
           }
-          
-          .logo {
+
+          .logo-section {
+            margin-bottom: 15px;
+            flex-direction: column;
+          }
+
+          .portal-logo {
             margin-right: 0;
             margin-bottom: 10px;
           }
-          
-          .institute-name {
+
+          .user-section {
+            flex-direction: column;
+          }
+
+          .user-info {
             text-align: center;
-          }
-          
-          .student-info td {
-            display: block;
-            width: 100%;
-          }
-          
-          .student-info tr {
-            display: block;
+            margin-right: 0;
             margin-bottom: 10px;
           }
-          
-          .signatures {
-            flex-direction: column;
-            align-items: center;
+
+          .info-grid, .links-grid, .tools-grid {
+            grid-template-columns: 1fr;
           }
-          
-          .signature {
-            width: 80%;
-            margin-bottom: 20px;
+        }
+
+        @media (max-width: 480px) {
+          .portal-container {
+            padding: 10px;
+          }
+
+          .portal-header, .welcome-section, .info-card, .quick-links, .external-tools, .account-management {
+            padding: 15px;
+          }
+
+          .portal-title {
+            font-size: 20px;
+          }
+
+          .welcome-section h2 {
+            font-size: 20px;
+          }
+
+          .card-title, .section-title {
+            font-size: 16px;
           }
         }
       `}</style>
