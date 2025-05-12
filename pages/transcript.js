@@ -121,7 +121,9 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   const [academicStanding, setAcademicStanding] = useState("Good Standing")
   const [degreeProgress, setDegreeProgress] = useState([])
   const [currentTerm, setCurrentTerm] = useState("")
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const printTranscript = useCallback(() => {
+    window.print()
+  }, [])
 
   // Helpers remain the same
   const seededRandom = useCallback((seed) => {
@@ -203,9 +205,9 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       // Simplified terms - just use 2 terms
       const currentDate = new Date()
       const currentYear = currentDate.getFullYear()
-      
+
       // Just use Fall and Spring of the current year
-      const terms = [`Fall ${currentYear-1}`, `Spring ${currentYear}`]
+      const terms = [`Fall ${currentYear - 1}`, `Spring ${currentYear}`]
       setCurrentTerm(`Spring ${currentYear}`)
 
       // For each term, generate exactly 4 courses
@@ -381,38 +383,42 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   )
 
   // PDF generation function
-  const generatePDF = useCallback(() => {
-    setIsGeneratingPdf(true)
-    
-    // Import html2pdf dynamically
-    import('html2pdf.js').then((html2pdf) => {
-      const element = document.querySelector('.transcript')
-      const opt = {
-        margin: 10,
-        filename: `transcript_${displaySid}_${new Date().toISOString().slice(0, 10)}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      }
-      
-      html2pdf.default()
-        .set(opt)
-        .from(element)
-        .save()
-        .then(() => {
-          setIsGeneratingPdf(false)
-        })
-        .catch(err => {
-          console.error('Error generating PDF:', err)
-          setIsGeneratingPdf(false)
-          alert('Failed to generate PDF. Please try again.')
-        })
-    }).catch(err => {
-      console.error('Error loading html2pdf:', err)
-      setIsGeneratingPdf(false)
-      alert('Failed to load PDF generator. Please try again.')
-    })
-  }, [])
+  // PDF generation function
+  // const generatePDF = useCallback(() => {
+  //   setIsGeneratingPdf(true)
+
+  //   // Import html2pdf dynamically
+  //   import("html2pdf.js")
+  //     .then((html2pdf) => {
+  //       const element = document.querySelector(".transcript")
+  //       const opt = {
+  //         margin: 10,
+  //         filename: `transcript_${displaySid}_${new Date().toISOString().slice(0, 10)}.pdf`,
+  //         image: { type: "jpeg", quality: 0.98 },
+  //         html2canvas: { scale: 2, useCORS: true, logging: false },
+  //         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+  //       }
+
+  //       html2pdf
+  //         .default()
+  //         .set(opt)
+  //         .from(element)
+  //         .save()
+  //         .then(() => {
+  //           setIsGeneratingPdf(false)
+  //         })
+  //         .catch((err) => {
+  //           console.error("Error generating PDF:", err)
+  //           setIsGeneratingPdf(false)
+  //           alert("Failed to generate PDF. Please try again.")
+  //         })
+  //     })
+  //     .catch((err) => {
+  //       console.error("Error loading html2pdf:", err)
+  //       setIsGeneratingPdf(false)
+  //       alert("Failed to load PDF generator. Please try again.")
+  //     })
+  // }, [])
 
   // useEffect to initialize data
   useEffect(() => {
@@ -519,12 +525,8 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       <div className="watermark">CONFUCIUS INSTITUTE</div>
 
       <div className="pdf-button-container">
-        <button 
-          className="pdf-button" 
-          onClick={generatePDF} 
-          disabled={isGeneratingPdf || displaySid === "N/A"}
-        >
-          {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+        <button className="pdf-button" onClick={printTranscript} disabled={displaySid === "N/A"}>
+          Print / Save as PDF
         </button>
       </div>
 
