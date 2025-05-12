@@ -119,6 +119,8 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   const [transcriptNo, setTranscriptNo] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
   const [academicStanding, setAcademicStanding] = useState("Good Standing")
+  const [degreeProgress, setDegreeProgress] = useState([])
+  const [currentTerm, setCurrentTerm] = useState("")
 
   // Helpers remain the same
   const seededRandom = useCallback((seed) => {
@@ -138,83 +140,190 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
     [seededRandom],
   )
 
+  // Updated course pool with more Confucius Institute appropriate courses
+  const confuciusCoursePool = [
+    { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
+    { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
+    { id: "CHN103", title: "Elementary Chinese Writing", credits: 3.0 },
+    { id: "CHN104", title: "Elementary Chinese Listening", credits: 3.0 },
+    { id: "CHN201", title: "Intermediate Chinese Speaking", credits: 3.0 },
+    { id: "CHN202", title: "Intermediate Chinese Reading", credits: 3.0 },
+    { id: "CHN203", title: "Intermediate Chinese Writing", credits: 3.0 },
+    { id: "CHN204", title: "Intermediate Chinese Listening", credits: 3.0 },
+    { id: "CHN301", title: "Advanced Chinese Grammar", credits: 3.0 },
+    { id: "CHN302", title: "Advanced Chinese Composition", credits: 3.0 },
+    { id: "CHN303", title: "Business Chinese", credits: 3.0 },
+    { id: "CHN304", title: "Chinese for Academic Purposes", credits: 3.0 },
+    { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
+    { id: "CUL110", title: "Chinese Festivals and Customs", credits: 2.0 },
+    { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0 },
+    { id: "CUL130", title: "Chinese Tea Culture", credits: 2.0 },
+    { id: "CUL200", title: "Ancient Chinese Literature", credits: 3.0 },
+    { id: "CUL210", title: "Chinese Philosophy Introduction", credits: 3.0 },
+    { id: "CUL220", title: "Chinese Traditional Medicine", credits: 2.0 },
+    { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
+    { id: "CUL240", title: "Chinese Painting Basics", credits: 1.0 },
+    { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
+    { id: "CUL260", title: "Chinese Film and Media", credits: 3.0 },
+    { id: "HIS100", title: "Chinese History Overview", credits: 3.0 },
+    { id: "HIS110", title: "Modern Chinese History", credits: 3.0 },
+    { id: "HIS120", title: "Chinese Dynasties", credits: 3.0 },
+    { id: "GEO100", title: "Chinese Geography", credits: 3.0 },
+    { id: "POL100", title: "Chinese Politics and Law", credits: 3.0 },
+    { id: "ECO100", title: "Chinese Economic Development", credits: 3.0 },
+    { id: "LIT100", title: "Modern Chinese Literature", credits: 3.0 },
+  ]
+
+  // Updated to generate random courses for each session
   const generateCoursesData = useCallback(
     (studentIdSeed) => {
-      const coursePool = [
-        { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
-        { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
-        { id: "CHN201", title: "Intermediate Chinese Speaking", credits: 3.0 },
-        { id: "CHN202", title: "Intermediate Chinese Reading", credits: 3.0 },
-        { id: "CHN301", title: "Advanced Chinese Grammar", credits: 3.0 },
-        { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
-        { id: "CUL110", title: "Chinese Festivals and Customs", credits: 2.0 },
-        { id: "CUL200", title: "Ancient Chinese Literature", credits: 3.0 },
-        { id: "CUL210", title: "Chinese Philosophy Introduction", credits: 3.0 },
-        { id: "CUL220", title: "Chinese Traditional Medicine", credits: 2.0 },
-        { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
-        { id: "CUL240", title: "Chinese Painting Basics", credits: 1.0 },
-        { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
-        { id: "CUL260", title: "Chinese Film and Media", credits: 3.0 },
-        { id: "BUS300", title: "Business Chinese", credits: 3.0 },
-        { id: "HIS100", title: "Chinese History Overview", credits: 3.0 },
-        { id: "GEO100", title: "Chinese Geography", credits: 3.0 },
-        { id: "LAW100", title: "Chinese Politics and Law", credits: 3.0 },
-        { id: "ECO100", title: "Chinese Economic Development", credits: 3.0 },
-        { id: "LIT400", title: "Modern Chinese Literature", credits: 3.0 },
-      ]
-      const grades = ["A", "A-", "B+", "B", "C+", "C", "W"]
-      const gpaPoints = { A: 4.0, "A-": 3.7, "B+": 3.3, B: 3.0, "C+": 2.3, C: 2.0, W: 0 }
+      const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
+      const gpaPoints = {
+        A: 4.0,
+        "A-": 3.7,
+        "B+": 3.3,
+        B: 3.0,
+        "B-": 2.7,
+        "C+": 2.3,
+        C: 2.0,
+        "C-": 1.7,
+        "D+": 1.3,
+        D: 1.0,
+        W: 0,
+      }
+
       const seed = Number.parseInt(studentIdSeed, 10) || Math.floor(Math.random() * 100000)
       const random = (offset) => seededRandom(seed + offset)
       const selectedCourses = []
       let totalAttempted = 0,
         totalEarned = 0,
         totalQualityPoints = 0
-      const terms = []
-      const currentJsDate = new Date()
-      const currentYear = currentJsDate.getFullYear()
-      const currentMonth = currentJsDate.getMonth() + 1
-      const academicYearStartMonth = 9
-      let currentTermYear = currentYear
-      const currentTermSeason = currentMonth >= academicYearStartMonth || currentMonth <= 2 ? "Fall" : "Spring"
-      if (currentMonth <= 2) currentTermYear--
-      const startYear = 2023
-      const startSeason = "Fall"
-      for (let year = startYear; year <= currentTermYear; year++) {
-        if (year === startYear && startSeason === "Spring") {
-        } else {
-          terms.push(`Fall ${year}`)
-          if (year < currentTermYear || (year === currentTermYear && currentTermSeason === "Spring")) {
-            terms.push(`Spring ${year + 1}`)
-          }
-        }
-        if (year === currentTermYear && `Fall ${year}` === `${currentTermSeason} ${currentTermYear}`) break
-        if (year + 1 === currentTermYear && `Spring ${year + 1}` === `${currentTermSeason} ${currentTermYear}`) break
+
+      // Generate realistic academic terms
+      const currentDate = new Date()
+      const currentYear = currentDate.getFullYear()
+      const currentMonth = currentDate.getMonth() + 1
+
+      // Determine current term
+      let currentTermSeason, currentTermYear
+      if (currentMonth >= 8) {
+        // Fall term (Aug-Dec)
+        currentTermSeason = "Fall"
+        currentTermYear = currentYear
+      } else if (currentMonth >= 1 && currentMonth <= 5) {
+        // Spring term (Jan-May)
+        currentTermSeason = "Spring"
+        currentTermYear = currentYear
+      } else {
+        // Summer term (Jun-Jul)
+        currentTermSeason = "Summer"
+        currentTermYear = currentYear
       }
-      const coursesPerTerm = 4
-      const usedIndices = new Set()
-      terms.forEach((term, termIndex) => {
+
+      const currentTermText = `${currentTermSeason} ${currentTermYear}`
+      setCurrentTerm(currentTermText)
+
+      // Generate past terms (going back 2 years max)
+      const terms = []
+      const startYear = currentYear - 2
+
+      for (let year = startYear; year <= currentYear; year++) {
+        // Add Fall term
+        terms.push(`Fall ${year}`)
+
+        // Add Spring term of next year
+        if (year < currentYear || (year === currentYear && currentMonth > 5)) {
+          terms.push(`Spring ${year + 1}`)
+        }
+
+        // Add Summer term
+        if (year < currentYear || (year === currentYear && currentMonth > 7)) {
+          terms.push(`Summer ${year}`)
+        }
+      }
+
+      // Sort terms chronologically and limit to most recent terms
+      terms.sort((a, b) => {
+        const yearA = Number.parseInt(a.split(" ")[1])
+        const yearB = Number.parseInt(b.split(" ")[1])
+        const seasonA = a.split(" ")[0]
+        const seasonB = b.split(" ")[0]
+
+        if (yearA !== yearB) return yearA - yearB
+
+        const seasonOrder = { Spring: 1, Summer: 2, Fall: 3 }
+        return seasonOrder[seasonA] - seasonOrder[seasonB]
+      })
+
+      // Take only the most recent 4-6 terms
+      const numTerms = 4 + Math.floor(random(100) * 3) // 4-6 terms
+      const recentTerms = terms.slice(-numTerms)
+
+      // For each term, generate 3-5 courses
+      const usedCourseIndices = new Set()
+
+      recentTerms.forEach((term, termIndex) => {
+        const coursesPerTerm = 3 + Math.floor(random(termIndex * 10) * 3) // 3-5 courses per term
         const termCourses = []
-        let termAttempt = 0
-        while (
-          termCourses.length < coursesPerTerm &&
-          usedIndices.size < coursePool.length &&
-          termAttempt < coursePool.length * 2
-        ) {
-          const courseIdx = Math.floor(
-            random(termIndex * 100 + termCourses.length * 5 + termAttempt) * coursePool.length,
-          )
-          termAttempt++
-          if (!usedIndices.has(courseIdx)) {
-            usedIndices.add(courseIdx)
-            const course = coursePool[courseIdx]
-            const gradeRoll = random(termIndex * 100 + termCourses.length * 5 + 1)
-            const gradeIdx = Math.floor(gradeRoll * (grades.length - (gradeRoll < 0.05 ? 0 : 1)))
+
+        // Try to add unique courses up to coursesPerTerm
+        for (let i = 0; i < coursesPerTerm; i++) {
+          // Find an unused course
+          let attempts = 0
+          let courseIdx
+
+          do {
+            courseIdx = Math.floor(random(termIndex * 100 + i * 10) * confuciusCoursePool.length)
+            attempts++
+          } while (usedCourseIndices.has(courseIdx) && attempts < 30)
+
+          // If we found a new course or tried enough times, use it
+          if (!usedCourseIndices.has(courseIdx) || attempts >= 30) {
+            if (!usedCourseIndices.has(courseIdx)) {
+              usedCourseIndices.add(courseIdx)
+            }
+
+            const course = confuciusCoursePool[courseIdx]
+
+            // Generate grade based on student ID and course
+            const gradeRoll = random(termIndex * 100 + i * 10 + 1)
+            // Weight grades to be more realistic (more common to get B range)
+            let gradeIdx
+            if (gradeRoll < 0.15)
+              gradeIdx = 0 // A
+            else if (gradeRoll < 0.25)
+              gradeIdx = 1 // A-
+            else if (gradeRoll < 0.4)
+              gradeIdx = 2 // B+
+            else if (gradeRoll < 0.6)
+              gradeIdx = 3 // B
+            else if (gradeRoll < 0.7)
+              gradeIdx = 4 // B-
+            else if (gradeRoll < 0.8)
+              gradeIdx = 5 // C+
+            else if (gradeRoll < 0.9)
+              gradeIdx = 6 // C
+            else if (gradeRoll < 0.95)
+              gradeIdx = 7 // C-
+            else if (gradeRoll < 0.97)
+              gradeIdx = 8 // D+
+            else if (gradeRoll < 0.99)
+              gradeIdx = 9 // D
+            else gradeIdx = 10 // W (rare)
+
             const grade = grades[gradeIdx]
             const credit = course.credits
             const isEarned = grade !== "W"
             const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
-            termCourses.push({ term, courseId: course.id, title: course.title, grade, credit })
+
+            termCourses.push({
+              term,
+              courseId: course.id,
+              title: course.title,
+              grade,
+              credit,
+            })
+
             totalAttempted += credit
             if (isEarned) {
               totalEarned += credit
@@ -222,69 +331,105 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
             }
           }
         }
+
         if (termCourses.length > 0) {
           selectedCourses.push({ term, courses: termCourses })
         }
       })
+
       const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
       return { selectedCourses, totalAttempted, totalEarned, totalQualityPoints, gpa }
     },
     [seededRandom],
   )
 
-  // Generate degree progress data
-  const generateDegreeProgress = useCallback((totalEarned) => {
-    const requirements = [
-      { name: "Chinese Language Core", required: 45.0 },
-      { name: "Culture & History", required: 24.0 },
-      { name: "General Studies", required: 36.0 },
-      { name: "Electives", required: 20.0 },
-    ]
+  // Generate degree progress data with randomized values
+  const generateDegreeProgress = useCallback(
+    (totalEarned, seed) => {
+      const random = (offset) => seededRandom(seed + offset)
 
-    // Distribute earned credits among requirements
-    let remainingCredits = totalEarned
-    const results = requirements.map((req) => {
-      const allocated = Math.min(remainingCredits, req.required)
-      remainingCredits -= allocated
-      const percentComplete = Math.round((allocated / req.required) * 100)
-      const status =
-        percentComplete === 100
+      // Total program requirement is fixed at 150 credits
+      const totalRequired = 150.0
+
+      // Define requirements with randomized proportions
+      const requirementProportions = [
+        { name: "Chinese Language Core", proportion: 0.3 + random(1) * 0.1 }, // 30-40%
+        { name: "Culture & History", proportion: 0.2 + random(2) * 0.1 }, // 20-30%
+        { name: "General Studies", proportion: 0.2 + random(3) * 0.1 }, // 20-30%
+        { name: "Electives", proportion: 0.1 + random(4) * 0.1 }, // 10-20%
+      ]
+
+      // Normalize proportions to ensure they sum to 1
+      const totalProportion = requirementProportions.reduce((sum, req) => sum + req.proportion, 0)
+      requirementProportions.forEach((req) => (req.proportion = req.proportion / totalProportion))
+
+      // Calculate required credits for each category
+      const requirements = requirementProportions.map((req) => ({
+        name: req.name,
+        required: Math.round(totalRequired * req.proportion * 10) / 10, // Round to 1 decimal place
+      }))
+
+      // Adjust the last requirement to ensure total is exactly 150
+      const calculatedTotal = requirements.reduce((sum, req) => sum + req.required, 0)
+      const lastIndex = requirements.length - 1
+      requirements[lastIndex].required =
+        Math.round((requirements[lastIndex].required + (totalRequired - calculatedTotal)) * 10) / 10
+
+      // Distribute earned credits among requirements with some randomness
+      let remainingCredits = totalEarned
+      const inProgressCredits = random(10) * 10 // 0-10 credits in progress
+
+      const results = requirements.map((req, index) => {
+        // Allocate credits with some randomness
+        const maxAllocation = Math.min(remainingCredits, req.required)
+        const allocation = Math.round(maxAllocation * (0.7 + random(index * 5) * 0.6) * 10) / 10
+        remainingCredits -= allocation
+
+        // Allocate some in-progress credits
+        const inProgressAllocation = index === 0 ? Math.round(inProgressCredits * 10) / 10 : 0
+
+        const percentComplete = Math.round((allocation / req.required) * 100)
+        const status =
+          percentComplete === 100
+            ? "Complete"
+            : percentComplete > 0
+              ? `In Progress (${percentComplete}%)`
+              : "Not Started (0%)"
+
+        return {
+          ...req,
+          completed: allocation.toFixed(2),
+          inProgress: inProgressAllocation.toFixed(2),
+          remaining: (req.required - allocation).toFixed(2),
+          status,
+        }
+      })
+
+      // Add total row
+      const totalCompleted = results.reduce((sum, req) => sum + Number.parseFloat(req.completed), 0)
+      const totalInProgress = results.reduce((sum, req) => sum + Number.parseFloat(req.inProgress), 0)
+      const totalRemaining = totalRequired - totalCompleted
+      const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
+      const totalStatus =
+        totalPercentComplete === 100
           ? "Complete"
-          : percentComplete > 0
-            ? `In Progress (${percentComplete}%)`
+          : totalPercentComplete > 0
+            ? `In Progress (${totalPercentComplete}%)`
             : "Not Started (0%)"
 
-      return {
-        ...req,
-        completed: allocated.toFixed(2),
-        inProgress: "0.00",
-        remaining: (req.required - allocated).toFixed(2),
-        status,
-      }
-    })
+      results.push({
+        name: "Total Program Requirements",
+        required: totalRequired.toFixed(2),
+        completed: totalCompleted.toFixed(2),
+        inProgress: totalInProgress.toFixed(2),
+        remaining: totalRemaining.toFixed(2),
+        status: totalStatus,
+      })
 
-    // Add total row
-    const totalRequired = requirements.reduce((sum, req) => sum + req.required, 0)
-    const totalCompleted = totalEarned
-    const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
-    const totalStatus =
-      totalPercentComplete === 100
-        ? "Complete"
-        : totalPercentComplete > 0
-          ? `In Progress (${totalPercentComplete}%)`
-          : "Not Started (0%)"
-
-    results.push({
-      name: "Total Program Requirements",
-      required: totalRequired.toFixed(2),
-      completed: totalCompleted.toFixed(2),
-      inProgress: "0.00",
-      remaining: (totalRequired - totalCompleted).toFixed(2),
-      status: totalStatus,
-    })
-
-    return results
-  }, [])
+      return results
+    },
+    [seededRandom],
+  )
 
   // useEffect to initialize data
   useEffect(() => {
@@ -295,7 +440,10 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       const courseData = generateCoursesData(studentId)
       setCoursesData(courseData)
 
-      const now = DateTime.now().setZone("Asia/Bishkek")
+      // Generate degree progress with randomized values
+      setDegreeProgress(generateDegreeProgress(courseData.totalEarned, dobSeed))
+
+      const now = DateTime.now().setZone("America/New_York")
       setPrintDate(now.toFormat("MMMM dd, yyyy"))
 
       // Generate transcript number and verification code
@@ -324,7 +472,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       setVerificationCode("N/A")
       setAcademicStanding("N/A")
     }
-  }, [studentId, generateRandomDOB, generateCoursesData])
+  }, [studentId, generateRandomDOB, generateCoursesData, generateDegreeProgress])
 
   // Error handling
   if (error) {
@@ -343,7 +491,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   }
 
   const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
-  const degreeProgress = generateDegreeProgress(coursesData.totalEarned)
+  const degreeProgressData = generateDegreeProgress(coursesData.totalEarned)
 
   return (
     <>
@@ -387,11 +535,17 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
 
       <div className="transcript">
         <div className="header">
-          <img
-            src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
-            alt="Confucius Institute Logo"
-            className="logo"
-          />
+          <div className="logo-container">
+            <img
+              src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
+              alt="Confucius Institute Logo"
+              className="logo"
+            />
+            <div className="institute-name">
+              <h2>CONFUCIUS INSTITUTE</h2>
+              <p>at Kyrgyz National University</p>
+            </div>
+          </div>
           <h1 className="title">OFFICIAL ACADEMIC TRANSCRIPT</h1>
           <p className="print-date">Print Date: {printDate}</p>
 
@@ -400,7 +554,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
             <p>
               Verification Code: <span className="verification-code">{verificationCode}</span>
             </p>
-            <p>Verify at: verify.kzxy.edu.kg</p>
+            <p>Verify at: kzxy.edu.kg</p>
           </div>
         </div>
 
@@ -470,11 +624,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
                 <td>
                   <strong>Current Semester</strong>
                 </td>
-                <td>
-                  {new Date().getMonth() >= 8
-                    ? `Fall ${new Date().getFullYear()}`
-                    : `Spring ${new Date().getFullYear()}`}
-                </td>
+                <td>{currentTerm}</td>
               </tr>
             </tbody>
           </table>
@@ -531,7 +681,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
               </tr>
             </thead>
             <tbody>
-              {degreeProgress.map((req, index) => (
+              {degreeProgressData.map((req, index) => (
                 <tr key={index}>
                   <td>{req.name}</td>
                   <td>{req.required}</td>
@@ -572,14 +722,25 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
               <tr>
                 <td>B+</td>
                 <td>3.3</td>
-                <td>W</td>
-                <td>Withdrawal (No point value)</td>
+                <td>C-</td>
+                <td>1.7</td>
               </tr>
               <tr>
                 <td>B</td>
                 <td>3.0</td>
-                <td></td>
-                <td></td>
+                <td>D+</td>
+                <td>1.3</td>
+              </tr>
+              <tr>
+                <td>B-</td>
+                <td>2.7</td>
+                <td>D</td>
+                <td>1.0</td>
+              </tr>
+              <tr>
+                <td colSpan="2"></td>
+                <td>W</td>
+                <td>Withdrawal (No point value)</td>
               </tr>
             </tbody>
           </table>
@@ -587,10 +748,22 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
 
         <div className="signatures">
           <div className="signature">
-            <p>University Registrar</p>
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/registrar_signature.png-jGPP68ItD24zryNlBDleit1S1QORmp.jpeg"
+              alt="Registrar Signature"
+              className="signature-img"
+            />
+            <p>Frank Mavish Denny</p>
+            <p className="title">University Registrar</p>
           </div>
           <div className="signature">
-            <p>Dean of Academic Affairs</p>
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/registrar_signature.png-jGPP68ItD24zryNlBDleit1S1QORmp.jpeg"
+              alt="Dean Signature"
+              className="signature-img"
+            />
+            <p>Frank Mavish Denny</p>
+            <p className="title">Dean of Academic Affairs</p>
           </div>
         </div>
 
@@ -607,7 +780,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
           <p>
             Document ID: {transcriptNo} • Generated: {printDate}
           </p>
-          <p>To verify the authenticity of this document, please visit verify.kzxy.edu.kg</p>
+          <p>To verify the authenticity of this document, please visit kzxy.edu.kg</p>
         </div>
       </div>
 
@@ -649,9 +822,37 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
           position: relative;
         }
         
-        .header img.logo {
-          max-width: 200px;
-          margin-bottom: 20px;
+        .logo-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 15px;
+        }
+        
+        .logo {
+          height: 80px;
+          width: auto;
+          margin-right: 15px;
+          background-color: white;
+          padding: 5px;
+          border-radius: 5px;
+        }
+        
+        .institute-name {
+          text-align: left;
+        }
+        
+        .institute-name h2 {
+          margin: 0;
+          color: #006633;
+          font-size: 24px;
+          font-weight: bold;
+        }
+        
+        .institute-name p {
+          margin: 5px 0 0;
+          color: #333;
+          font-size: 16px;
         }
         
         .title {
@@ -744,12 +945,22 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
           width: 45%;
         }
         
+        .signature-img {
+          max-width: 150px;
+          height: auto;
+          margin-bottom: 5px;
+        }
+        
         .signature p {
           color: #006633;
           font-weight: bold;
           margin: 5px 0;
-          padding-top: 40px;
-          border-top: 1px solid #006633;
+        }
+        
+        .signature p.title {
+          font-weight: normal;
+          font-size: 14px;
+          color: #333;
         }
         
         .barcode-container {
@@ -815,6 +1026,20 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         @media (max-width: 768px) {
           .transcript {
             padding: 15px;
+          }
+          
+          .logo-container {
+            flex-direction: column;
+            text-align: center;
+          }
+          
+          .logo {
+            margin-right: 0;
+            margin-bottom: 10px;
+          }
+          
+          .institute-name {
+            text-align: center;
           }
           
           .student-info td {
