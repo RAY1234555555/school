@@ -1,1836 +1,840 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/router"
 import Head from "next/head"
-import Link from "next/link"
+import Script from "next/script"
+import { useEffect, useState, useCallback } from "react"
 import { parse } from "cookie"
+import { DateTime } from "luxon"
 
-// --- fetchGoogleUser Helper (Same as in student-card.js) ---
+// --- fetchGoogleUser Helper (Remains the same) ---
 async function fetchGoogleUser(email) {
-  console.log(`[fetchGoogleUser - Portal] Attempting to get refresh token for: ${email}`)
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN, // Critical: Must be valid!
-      grant_type: "refresh_token",
-    }),
-  })
-
-  if (!tokenRes.ok) {
-    const errorBody = await tokenRes.text()
-    console.error(`[fetchGoogleUser - Portal] Failed to refresh Google token: ${tokenRes.status}`, errorBody)
-    return null // Indicate failure
+  console.log(`[fetchGoogleUser - Transcript] Attempting for: ${email}`)
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REFRESH_TOKEN) {
+    console.error("[fetchGoogleUser - Transcript] Missing Google OAuth ENV VARS!")
+    return null
   }
-
-  const { access_token } = await tokenRes.json()
-  console.log(`[fetchGoogleUser - Portal] Got new access token. Fetching user data...`)
-
-  const userRes = await fetch(
-    `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
-    { headers: { Authorization: `Bearer ${access_token}` } },
-  )
-
-  if (!userRes.ok) {
-    const errorBody = await userRes.text()
-    console.error(`[fetchGoogleUser - Portal] Failed to fetch Google user data: ${userRes.status}`, errorBody)
-    return null // Indicate failure
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+        grant_type: "refresh_token",
+      }),
+    })
+    if (!tokenRes.ok) {
+      const errorBody = await tokenRes.text()
+      console.error(`[fetchGoogleUser - Transcript] Token Refresh Fail: ${tokenRes.status}`, errorBody)
+      return null
+    }
+    const { access_token } = await tokenRes.json()
+    console.log(`[fetchGoogleUser - Transcript] Token OK. Fetching user...`)
+    const userRes = await fetch(
+      `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
+      { headers: { Authorization: `Bearer ${access_token}` } },
+    )
+    if (!userRes.ok) {
+      const errorBody = await userRes.text()
+      console.error(`[fetchGoogleUser - Transcript] User Fetch Fail: ${userRes.status}`, errorBody)
+      return null
+    }
+    console.log(`[fetchGoogleUser - Transcript] User OK.`)
+    return await userRes.json()
+  } catch (error) {
+    console.error("[fetchGoogleUser - Transcript] Network/Other Error:", error)
+    return null
   }
-  console.log(`[fetchGoogleUser - Portal] Successfully fetched user data.`)
-  return await userRes.json()
 }
 
-// --- getServerSideProps (Logic mirrored from student-card.js) ---
+// --- getServerSideProps (Remains the same) ---
 export async function getServerSideProps({ req }) {
-  console.log("[getServerSideProps - Portal] Starting...")
+  console.log("[getServerSideProps - Transcript] Starting...")
   const cookies = parse(req.headers.cookie || "")
-
   const oauthUsername = cookies.oauthUsername || null
-  // *** Prioritize reading student ID from cookie ***
   const studentIdFromCookie = cookies.oauthStudentId || cookies.oauthUserId || null
   const oauthFullNameFromCookie = cookies.oauthFullName || null
   const trustLevel = Number.parseInt(cookies.oauthTrustLevel || "0", 10)
 
-  console.log("[getServerSideProps - Portal] Cookies parsed:", cookies)
+  console.log("[getServerSideProps - Transcript] Cookies:", cookies)
 
-  // Authentication check
   if (!oauthUsername || trustLevel < 3) {
-    // Keep appropriate trust level check
-    console.log("[getServerSideProps - Portal] Redirecting: No username or insufficient trust.")
+    console.log("[getServerSideProps - Transcript] Redirect: Auth Fail.")
     return { redirect: { destination: "/", permanent: false } }
   }
 
-  // Construct email
   const rawDom = process.env.EMAIL_DOMAIN
   const domain = rawDom && rawDom.startsWith("@") ? rawDom : "@" + (rawDom || "kzxy.edu.kg")
   const studentEmail = oauthUsername.includes("@") ? oauthUsername : `${oauthUsername}${domain}`
 
-  console.log("[getServerSideProps - Portal] Attempting fetchGoogleUser for:", studentEmail)
+  console.log("[getServerSideProps - Transcript] Fetching Google User:", studentEmail)
+  const googleUser = await fetchGoogleUser(studentEmail)
 
-  // Fetch data from Google
-  let googleUser
-  let fetchError = null
-  try {
-    googleUser = await fetchGoogleUser(studentEmail)
-  } catch (error) {
-    console.error("[getServerSideProps - Portal] Error during fetchGoogleUser call:", error)
-    fetchError = "Failed to communicate with Google services."
-    googleUser = null
-  }
+  let fullName,
+    emailToUse,
+    finalStudentId,
+    fetchError = null
 
-  // --- Handle Failure to Fetch Google Data (Use Cookie Fallback) ---
   if (!googleUser) {
-    console.log("[getServerSideProps - Portal] fetchGoogleUser failed or returned null.")
-    if (studentIdFromCookie && oauthFullNameFromCookie) {
-      console.warn("[getServerSideProps - Portal] Falling back to cookie data due to fetch failure.")
-      return {
-        props: {
-          initialFullName: oauthFullNameFromCookie,
-          initialEmail: studentEmail,
-          initialStudentId: studentIdFromCookie, // Use ID from cookie
-          fetchError: "Could not refresh data from Google; showing last known info.",
-        },
-      }
-    } else {
-      // If no fallback possible
-      console.log(
-        "[getServerSideProps - Portal] Redirecting: fetchGoogleUser failed and no sufficient cookie fallback.",
-      )
-      return { redirect: { destination: "/?error=profile_fetch_failed_no_fallback", permanent: false } }
-    }
+    console.warn("[getServerSideProps - Transcript] Fetch Fail. Fallback.")
+    fetchError = "Could not refresh data from Google."
+    fullName = oauthFullNameFromCookie
+    emailToUse = studentEmail
+    finalStudentId = studentIdFromCookie
+  } else {
+    console.log("[getServerSideProps - Transcript] Fetch OK.")
+    fullName = googleUser.name
+      ? `${googleUser.name.givenName || ""} ${googleUser.name.familyName || ""}`.trim()
+      : oauthFullNameFromCookie
+    emailToUse = googleUser.primaryEmail || studentEmail
+    finalStudentId = studentIdFromCookie || googleUser.id
   }
-
-  // --- Extract Data (Prioritize Google for Name/Email, Cookie for ID) ---
-  console.log("[getServerSideProps - Portal] Google user data fetched successfully.")
-  const fullName = googleUser.name
-    ? `${googleUser.name.givenName || ""} ${googleUser.name.familyName || ""}`.trim()
-    : oauthFullNameFromCookie || "Name Missing"
-  const emailFromGoogle = googleUser.primaryEmail || studentEmail
-
-  // *** Student ID: Use cookie ID first, then Google ID as last resort ***
-  const finalStudentId = studentIdFromCookie || googleUser.id || null
 
   if (!finalStudentId) {
-    console.error("[getServerSideProps - Portal] Error: Student ID is missing after Google fetch and cookie check.")
-    return { props: { error: "Student ID is missing, cannot display portal." } }
+    console.error("[getServerSideProps - Transcript] Error: ID Missing.")
+    return { props: { error: "Student ID missing." } }
+  }
+  if (!fullName) {
+    fullName = "Student"
   }
 
-  console.log("[getServerSideProps - Portal] Data prepared:", { fullName, emailFromGoogle, finalStudentId })
+  console.log("[getServerSideProps - Transcript] Props Data:", { fullName, emailToUse, finalStudentId })
 
-  // Pass data as props
-  return {
-    props: {
-      initialFullName: fullName,
-      initialEmail: emailFromGoogle,
-      initialStudentId: finalStudentId,
-      fetchError: null, // Successful fetch
-    },
-  }
+  return { props: { fullName, studentEmail: emailToUse, studentId: finalStudentId, error: null, fetchError } }
 }
 
-// --- Redesigned StudentPortal Component with Clear Navigation Structure ---
-export default function StudentPortal({ initialFullName, initialEmail, initialStudentId, error, fetchError }) {
-  const router = useRouter()
-  const [currentSemester, setCurrentSemester] = useState("")
-  const [currentYear, setCurrentYear] = useState("")
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+// --- Redesigned Transcript Component based on ASU template ---
+export default function Transcript({ fullName, studentEmail, studentId, error, fetchError }) {
+  // State for transcript data
+  const [coursesData, setCoursesData] = useState({
+    selectedCourses: [],
+    totalAttempted: 0,
+    totalEarned: 0,
+    totalQualityPoints: 0,
+    gpa: "0.00",
+  })
+  const [dateOfBirth, setDateOfBirth] = useState("")
+  const [printDate, setPrintDate] = useState("")
+  const [transcriptNo, setTranscriptNo] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [academicStanding, setAcademicStanding] = useState("Good Standing")
 
-  useEffect(() => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1
-    let semesterText = ""
-    if (month >= 9 || month <= 2) semesterText = `${year} 秋冬`
-    else if (month >= 3 && month <= 8) semesterText = `${year} 春夏`
-    else semesterText = `${year}`
-    setCurrentSemester(semesterText)
-    setCurrentYear(year)
+  // Helpers remain the same
+  const seededRandom = useCallback((seed) => {
+    const x = Math.sin(seed) * 10000
+    return x - Math.floor(x)
   }, [])
 
-  const handleDelete = async () => {
-    setIsDeleting(true)
-    try {
-      const response = await fetch("/api/delete-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-      if (!response.ok) {
-        throw new Error("Deletion failed")
+  const generateRandomDOB = useCallback(
+    (seed) => {
+      const random = (offset) => seededRandom(seed + offset)
+      const baseYear = 1998 + Math.floor(random(50) * 8)
+      const m = Math.floor(random(51) * 12)
+      const d = 1 + Math.floor(random(52) * 27)
+      const dob = new Date(baseYear, m, d)
+      return dob.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    },
+    [seededRandom],
+  )
+
+  const generateCoursesData = useCallback(
+    (studentIdSeed) => {
+      const coursePool = [
+        { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
+        { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
+        { id: "CHN201", title: "Intermediate Chinese Speaking", credits: 3.0 },
+        { id: "CHN202", title: "Intermediate Chinese Reading", credits: 3.0 },
+        { id: "CHN301", title: "Advanced Chinese Grammar", credits: 3.0 },
+        { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
+        { id: "CUL110", title: "Chinese Festivals and Customs", credits: 2.0 },
+        { id: "CUL200", title: "Ancient Chinese Literature", credits: 3.0 },
+        { id: "CUL210", title: "Chinese Philosophy Introduction", credits: 3.0 },
+        { id: "CUL220", title: "Chinese Traditional Medicine", credits: 2.0 },
+        { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
+        { id: "CUL240", title: "Chinese Painting Basics", credits: 1.0 },
+        { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
+        { id: "CUL260", title: "Chinese Film and Media", credits: 3.0 },
+        { id: "BUS300", title: "Business Chinese", credits: 3.0 },
+        { id: "HIS100", title: "Chinese History Overview", credits: 3.0 },
+        { id: "GEO100", title: "Chinese Geography", credits: 3.0 },
+        { id: "LAW100", title: "Chinese Politics and Law", credits: 3.0 },
+        { id: "ECO100", title: "Chinese Economic Development", credits: 3.0 },
+        { id: "LIT400", title: "Modern Chinese Literature", credits: 3.0 },
+      ]
+      const grades = ["A", "A-", "B+", "B", "C+", "C", "W"]
+      const gpaPoints = { A: 4.0, "A-": 3.7, "B+": 3.3, B: 3.0, "C+": 2.3, C: 2.0, W: 0 }
+      const seed = Number.parseInt(studentIdSeed, 10) || Math.floor(Math.random() * 100000)
+      const random = (offset) => seededRandom(seed + offset)
+      const selectedCourses = []
+      let totalAttempted = 0,
+        totalEarned = 0,
+        totalQualityPoints = 0
+      const terms = []
+      const currentJsDate = new Date()
+      const currentYear = currentJsDate.getFullYear()
+      const currentMonth = currentJsDate.getMonth() + 1
+      const academicYearStartMonth = 9
+      let currentTermYear = currentYear
+      const currentTermSeason = currentMonth >= academicYearStartMonth || currentMonth <= 2 ? "Fall" : "Spring"
+      if (currentMonth <= 2) currentTermYear--
+      const startYear = 2023
+      const startSeason = "Fall"
+      for (let year = startYear; year <= currentTermYear; year++) {
+        if (year === startYear && startSeason === "Spring") {
+        } else {
+          terms.push(`Fall ${year}`)
+          if (year < currentTermYear || (year === currentTermYear && currentTermSeason === "Spring")) {
+            terms.push(`Spring ${year + 1}`)
+          }
+        }
+        if (year === currentTermYear && `Fall ${year}` === `${currentTermSeason} ${currentTermYear}`) break
+        if (year + 1 === currentTermYear && `Spring ${year + 1}` === `${currentTermSeason} ${currentTermYear}`) break
       }
-      alert("Account deleted successfully.")
-      router.push("/api/logout")
-    } catch (err) {
-      console.error("Error deleting account:", err)
-      alert("An error occurred while deleting the account.")
-      setIsDeleting(false)
-    }
-  }
+      const coursesPerTerm = 4
+      const usedIndices = new Set()
+      terms.forEach((term, termIndex) => {
+        const termCourses = []
+        let termAttempt = 0
+        while (
+          termCourses.length < coursesPerTerm &&
+          usedIndices.size < coursePool.length &&
+          termAttempt < coursePool.length * 2
+        ) {
+          const courseIdx = Math.floor(
+            random(termIndex * 100 + termCourses.length * 5 + termAttempt) * coursePool.length,
+          )
+          termAttempt++
+          if (!usedIndices.has(courseIdx)) {
+            usedIndices.add(courseIdx)
+            const course = coursePool[courseIdx]
+            const gradeRoll = random(termIndex * 100 + termCourses.length * 5 + 1)
+            const gradeIdx = Math.floor(gradeRoll * (grades.length - (gradeRoll < 0.05 ? 0 : 1)))
+            const grade = grades[gradeIdx]
+            const credit = course.credits
+            const isEarned = grade !== "W"
+            const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
+            termCourses.push({ term, courseId: course.id, title: course.title, grade, credit })
+            totalAttempted += credit
+            if (isEarned) {
+              totalEarned += credit
+              totalQualityPoints += qualityPts
+            }
+          }
+        }
+        if (termCourses.length > 0) {
+          selectedCourses.push({ term, courses: termCourses })
+        }
+      })
+      const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
+      return { selectedCourses, totalAttempted, totalEarned, totalQualityPoints, gpa }
+    },
+    [seededRandom],
+  )
 
-  const handleLogout = () => {
-    setIsLoggingOut(true)
-    fetch("/api/logout", {
-      method: "POST",
-    }).then(() => {
-      router.push("/")
+  // Generate degree progress data
+  const generateDegreeProgress = useCallback((totalEarned) => {
+    const requirements = [
+      { name: "Chinese Language Core", required: 45.0 },
+      { name: "Culture & History", required: 24.0 },
+      { name: "General Studies", required: 36.0 },
+      { name: "Electives", required: 20.0 },
+    ]
+
+    // Distribute earned credits among requirements
+    let remainingCredits = totalEarned
+    const results = requirements.map((req) => {
+      const allocated = Math.min(remainingCredits, req.required)
+      remainingCredits -= allocated
+      const percentComplete = Math.round((allocated / req.required) * 100)
+      const status =
+        percentComplete === 100
+          ? "Complete"
+          : percentComplete > 0
+            ? `In Progress (${percentComplete}%)`
+            : "Not Started (0%)"
+
+      return {
+        ...req,
+        completed: allocated.toFixed(2),
+        inProgress: "0.00",
+        remaining: (req.required - allocated).toFixed(2),
+        status,
+      }
     })
-  }
 
+    // Add total row
+    const totalRequired = requirements.reduce((sum, req) => sum + req.required, 0)
+    const totalCompleted = totalEarned
+    const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
+    const totalStatus =
+      totalPercentComplete === 100
+        ? "Complete"
+        : totalPercentComplete > 0
+          ? `In Progress (${totalPercentComplete}%)`
+          : "Not Started (0%)"
+
+    results.push({
+      name: "Total Program Requirements",
+      required: totalRequired.toFixed(2),
+      completed: totalCompleted.toFixed(2),
+      inProgress: "0.00",
+      remaining: (totalRequired - totalCompleted).toFixed(2),
+      status: totalStatus,
+    })
+
+    return results
+  }, [])
+
+  // useEffect to initialize data
+  useEffect(() => {
+    if (studentId && studentId !== "ERRORID") {
+      const dobSeed = Number.parseInt(studentId, 10) || 12345
+      setDateOfBirth(generateRandomDOB(dobSeed))
+
+      const courseData = generateCoursesData(studentId)
+      setCoursesData(courseData)
+
+      const now = DateTime.now().setZone("Asia/Bishkek")
+      setPrintDate(now.toFormat("MMMM dd, yyyy"))
+
+      // Generate transcript number and verification code
+      setTranscriptNo(`CI-TR-${now.toFormat("yyyyMMdd")}${studentId.substring(0, 2)}`)
+      setVerificationCode(`CI${now.toFormat("yyMMdd")}-${studentId.substring(0, 6)}-TR`)
+
+      // Set academic standing based on GPA
+      const gpaNum = Number.parseFloat(courseData.gpa)
+      if (gpaNum >= 3.5) {
+        setAcademicStanding("Excellent Standing")
+      } else if (gpaNum >= 3.0) {
+        setAcademicStanding("Good Standing")
+      } else if (gpaNum >= 2.0) {
+        setAcademicStanding("Satisfactory")
+      } else if (gpaNum > 0) {
+        setAcademicStanding("Academic Probation")
+      } else {
+        setAcademicStanding("Not Started")
+      }
+    } else {
+      // Set defaults if ID is missing
+      setDateOfBirth("N/A")
+      setCoursesData({ selectedCourses: [], totalAttempted: 0, totalEarned: 0, totalQualityPoints: 0, gpa: "N/A" })
+      setPrintDate("N/A")
+      setTranscriptNo("Transcript No. N/A")
+      setVerificationCode("N/A")
+      setAcademicStanding("N/A")
+    }
+  }, [studentId, generateRandomDOB, generateCoursesData])
+
+  // Error handling
   if (error) {
     return (
-      <div className="error-page">
-        <div className="error-container">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="64"
-            height="64"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="error-icon"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <h1>无法加载门户</h1>
-          <p>{error}</p>
-          <div className="error-actions">
-            <a href="/student-portal" className="btn btn-primary">
-              重试
-            </a>
-            <a href="/" className="btn btn-secondary">
-              返回登录
-            </a>
-          </div>
-        </div>
+      <div style={{ padding: "40px", textAlign: "center", color: "red", fontFamily: "Arial, sans-serif" }}>
+        <h2>Error Loading Transcript</h2>
+        <p>{error}</p>
+        <a href="/student-portal" style={{ color: "#007bff", textDecoration: "underline", marginRight: "15px" }}>
+          Back to Portal
+        </a>
+        <a href="/" style={{ color: "#007bff", textDecoration: "underline" }}>
+          Go to Login
+        </a>
       </div>
     )
   }
 
+  const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
+  const degreeProgress = generateDegreeProgress(coursesData.totalEarned)
+
   return (
     <>
       <Head>
-        <title>学生仪表板 | 孔子学院</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <title>Academic Transcript - Confucius Institute</title>
+        <meta name="description" content="Confucius Institute Official Academic Transcript" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </Head>
 
-      <div className="app-container">
-        {/* Sidebar - Only for Navigation */}
-        <aside className={`sidebar ${isMobileMenuOpen ? "sidebar-open" : ""}`}>
-          <div className="sidebar-header">
-            <img
-              src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
-              alt="孔子学院"
-              className="sidebar-logo"
-            />
-            <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
+      {/* Keep JsBarcode script */}
+      <Script
+        src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          if (window.JsBarcode && document.getElementById("barcode-svg") && displaySid !== "N/A") {
+            try {
+              window.JsBarcode("#barcode-svg", displaySid, {
+                format: "CODE128",
+                lineColor: "#000",
+                width: 2,
+                height: 50,
+                displayValue: true,
+                textMargin: 5,
+              })
+            } catch (e) {
+              console.error("JsBarcode error:", e)
+            }
+          } else if (displaySid === "N/A") {
+            console.warn("Student ID missing, cannot generate barcode.")
+          }
+        }}
+        onError={(e) => {
+          console.error("Failed to load JsBarcode script:", e)
+        }}
+      />
 
-          <div className="sidebar-user">
-            <div className="user-avatar">{initialFullName ? initialFullName.charAt(0).toUpperCase() : "S"}</div>
-            <div className="user-info">
-              <h3 className="user-name">{initialFullName || "学生"}</h3>
-              <p className="user-email">{initialEmail || "加载中..."}</p>
-            </div>
-          </div>
+      <div className="watermark">CONFUCIUS INSTITUTE</div>
 
-          <nav className="sidebar-nav">
-            <ul className="nav-list">
-              <li className="nav-item active">
-                <a href="#dashboard" className="nav-link">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="14" width="7" height="7"></rect>
-                    <rect x="3" y="14" width="7" height="7"></rect>
-                  </svg>
-                  <span>抄本</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <Link href="/student-card" legacyBehavior>
-                  <a className="nav-link">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                      <line x1="2" y1="10" x2="22" y2="10"></line>
-                    </svg>
-                    <span>学生证</span>
-                  </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/transcript" legacyBehavior>
-                  <a className="nav-link">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                    <span>抄本</span>
-                  </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <a
-                  href={`https://mail.google.com/a/${
-                    initialEmail?.split("@")[1] || "kzxy.edu.kg"
-                  }?Email=${encodeURIComponent(initialEmail || "")}`}
-                  className="nav-link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                  <span>电子邮件</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <Link href="/aliases" legacyBehavior>
-                  <a className="nav-link">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="9" cy="7" r="4"></circle>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    <span>电子邮件别名</span>
-                  </a>
-                </Link>
-              </li>
-              <li className="nav-divider"></li>
-              <li className="nav-item">
-                <a href="https://account.adobe.com/" className="nav-link" target="_blank" rel="noopener noreferrer">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                  <span>Adobe Express</span>
-                </a>
-              </li>
-              <li className="nav-item">
-                <a href="https://www.canva.com/login" className="nav-link" target="_blank" rel="noopener noreferrer">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
-                  <span>Canva 餐厅</span>
-                </a>
-              </li>
-              <li className="nav-divider"></li>
-              <li className="nav-item">
-                <Link href="/reset-password" legacyBehavior>
-                  <a className="nav-link">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                    <span>重置密码</span>
-                  </a>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <button onClick={handleLogout} disabled={isLoggingOut} className="nav-link logout">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                  <span>{isLoggingOut ? "注销中..." : "注销"}</span>
-                </button>
-              </li>
-              <li className="nav-item">
-                <button onClick={() => setIsDeleteModalOpen(true)} className="nav-link delete">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                  </svg>
-                  <span>删除账户</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
+      <div className="transcript">
+        <div className="header">
+          <img
+            src="https://kzxy.edu.kg/static/themes/default/images/indexImg/logo-20th.png"
+            alt="Confucius Institute Logo"
+            className="logo"
+          />
+          <h1 className="title">OFFICIAL ACADEMIC TRANSCRIPT</h1>
+          <p className="print-date">Print Date: {printDate}</p>
 
-          <div className="sidebar-footer">
+          <div className="verification-section">
+            <p>Document ID: {transcriptNo}</p>
             <p>
-              © {currentYear} 孔子学院
-              <br />
-              <a href="https://kzxy.edu.kg" target="_blank" rel="noopener noreferrer">
-                kzxy.edu.kg
-              </a>
+              Verification Code: <span className="verification-code">{verificationCode}</span>
             </p>
+            <p>Verify at: verify.kzxy.edu.kg</p>
           </div>
-        </aside>
+        </div>
 
-        {/* Main Content */}
-        <main className="main-content">
-          {/* Top Bar */}
-          <header className="top-bar">
-            <button className="menu-toggle" onClick={() => setIsMobileMenuOpen(true)}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-              </svg>
-            </button>
-            <h1 className="page-title">学生仪表板</h1>
-            <div className="top-bar-actions">
-              <button onClick={handleLogout} disabled={isLoggingOut} className="logout-btn">
-                {isLoggingOut ? (
-                  <span className="loading-spinner"></span>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                )}
-              </button>
-            </div>
-          </header>
+        <div className="section">
+          <div className="section-title">STUDENT INFORMATION</div>
+          <table className="student-info">
+            <tbody>
+              <tr>
+                <td>
+                  <strong>Full Name</strong>
+                </td>
+                <td>{fullName || "N/A"}</td>
+                <td>
+                  <strong>Student ID</strong>
+                </td>
+                <td>{displaySid}</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Date of Birth</strong>
+                </td>
+                <td>{dateOfBirth || "N/A"}</td>
+                <td>
+                  <strong>Email</strong>
+                </td>
+                <td>{studentEmail || "N/A"}</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Program</strong>
+                </td>
+                <td colSpan="3">Chinese Language Studies</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-          {/* Alert Banner */}
-          {fetchError && (
-            <div className="alert">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>{fetchError}</span>
-            </div>
+        <div className="section">
+          <div className="section-title">ACADEMIC SUMMARY</div>
+          <table>
+            <tbody>
+              <tr>
+                <td>
+                  <strong>Institutional GPA</strong>
+                </td>
+                <td>{coursesData.gpa}</td>
+                <td>
+                  <strong>Total Credits Attempted</strong>
+                </td>
+                <td>{coursesData.totalAttempted.toFixed(1)}</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Academic Standing</strong>
+                </td>
+                <td>{academicStanding}</td>
+                <td>
+                  <strong>Total Credits Earned</strong>
+                </td>
+                <td>{coursesData.totalEarned.toFixed(1)}</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Total Quality Points</strong>
+                </td>
+                <td>{coursesData.totalQualityPoints.toFixed(2)}</td>
+                <td>
+                  <strong>Current Semester</strong>
+                </td>
+                <td>
+                  {new Date().getMonth() >= 8
+                    ? `Fall ${new Date().getFullYear()}`
+                    : `Spring ${new Date().getFullYear()}`}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="section">
+          <div className="section-title">CONFUCIUS INSTITUTE AT KYRGYZ NATIONAL UNIVERSITY</div>
+
+          {coursesData.selectedCourses.length === 0 ? (
+            <p className="term-summary">No courses completed yet.</p>
+          ) : (
+            coursesData.selectedCourses.map((termData, termIdx) => (
+              <div key={termIdx}>
+                <div className="term-title">{termData.term}</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Course ID</th>
+                      <th>Course Title</th>
+                      <th>Grade</th>
+                      <th>Credits</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {termData.courses.map((course, courseIdx) => (
+                      <tr key={courseIdx}>
+                        <td>{course.courseId}</td>
+                        <td>{course.title}</td>
+                        <td>{course.grade}</td>
+                        <td>{course.credit.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="term-summary">
+                  Term Credits: {termData.courses.reduce((sum, course) => sum + course.credit, 0).toFixed(1)}
+                </p>
+              </div>
+            ))
           )}
+        </div>
 
-          {/* Content Area */}
-          <div className="content">
-            {/* Welcome Section */}
-            <section className="welcome-section">
-              <div className="welcome-text">
-                <h2>欢迎, {initialFullName || "学生"}!</h2>
-                <p>以下是您需要了解的 {currentSemester || "本学期"} 信息。</p>
-              </div>
-            </section>
+        <div className="section">
+          <div className="section-title">DEGREE PROGRESS</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Requirement</th>
+                <th>Required</th>
+                <th>Completed</th>
+                <th>In Progress</th>
+                <th>Remaining</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {degreeProgress.map((req, index) => (
+                <tr key={index}>
+                  <td>{req.name}</td>
+                  <td>{req.required}</td>
+                  <td>{req.completed}</td>
+                  <td>{req.inProgress}</td>
+                  <td>{req.remaining}</td>
+                  <td>{req.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-            {/* Student Info Card */}
-            <section className="info-section">
-              <div className="section-header">
-                <h2 className="section-title">学生信息</h2>
-              </div>
-              <div className="info-card">
-                <div className="info-grid">
-                  <div className="info-item">
-                    <span className="info-label">名字</span>
-                    <span className="info-value">{initialFullName || "加载中..."}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">学生证</span>
-                    <span className="info-value highlight">{initialStudentId || "加载中..."}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">电子邮件</span>
-                    <span className="info-value">{initialEmail || "加载中..."}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">学期</span>
-                    <span className="info-value">{currentSemester || "计算中..."}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">程序</span>
-                    <span className="info-value">汉语学习项目</span>
-                  </div>
-                </div>
-              </div>
-            </section>
+        <div className="section">
+          <div className="section-title">GRADING SYSTEM</div>
+          <table className="grading-system">
+            <thead>
+              <tr>
+                <th>Grade</th>
+                <th>Quality Points</th>
+                <th>Grade</th>
+                <th>Quality Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>A</td>
+                <td>4.0</td>
+                <td>C+</td>
+                <td>2.3</td>
+              </tr>
+              <tr>
+                <td>A-</td>
+                <td>3.7</td>
+                <td>C</td>
+                <td>2.0</td>
+              </tr>
+              <tr>
+                <td>B+</td>
+                <td>3.3</td>
+                <td>W</td>
+                <td>Withdrawal (No point value)</td>
+              </tr>
+              <tr>
+                <td>B</td>
+                <td>3.0</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-            {/* Quick Access Section - Main Dashboard Content */}
-            <section className="services-section">
-              <div className="section-header">
-                <h2 className="section-title">快速访问</h2>
-              </div>
-              <div className="services-grid">
-                <Link href="/student-card" legacyBehavior>
-                  <a className="service-card">
-                    <div className="service-icon blue">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                        <line x1="2" y1="10" x2="22" y2="10"></line>
-                      </svg>
-                    </div>
-                    <h3>学生证</h3>
-                    <p>查看您的数字学生证</p>
-                  </a>
-                </Link>
-
-                <Link href="/transcript" legacyBehavior>
-                  <a className="service-card">
-                    <div className="service-icon green">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
-                    </div>
-                    <h3>抄本</h3>
-                    <p>查看您的学术记录</p>
-                  </a>
-                </Link>
-
-                <a
-                  href={`https://mail.google.com/a/${
-                    initialEmail?.split("@")[1] || "kzxy.edu.kg"
-                  }?Email=${encodeURIComponent(initialEmail || "")}`}
-                  className="service-card"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="service-icon red">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                  </div>
-                  <h3>电子邮件</h3>
-                  <p>访问您的学生电子邮件</p>
-                </a>
-
-                <Link href="/aliases" legacyBehavior>
-                  <a className="service-card">
-                    <div className="service-icon purple">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                      </svg>
-                    </div>
-                    <h3>电子邮件别名</h3>
-                    <p>管理其他电子邮件地址</p>
-                  </a>
-                </Link>
-              </div>
-            </section>
-
-            {/* External Tools Section */}
-            <section className="tools-section">
-              <div className="section-header">
-                <h2 className="section-title">外部工具</h2>
-              </div>
-              <div className="tools-grid">
-                <a href="https://account.adobe.com/" className="tool-card" target="_blank" rel="noopener noreferrer">
-                  <div className="tool-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                  </div>
-                  <div className="tool-info">
-                    <h3>Adobe Express</h3>
-                    <p>创建图形、视频和网页</p>
-                  </div>
-                  <div className="tool-action">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
-                  </div>
-                </a>
-
-                <a href="https://www.canva.com/login" className="tool-card" target="_blank" rel="noopener noreferrer">
-                  <div className="tool-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                    </svg>
-                  </div>
-                  <div className="tool-info">
-                    <h3>Canva 餐厅</h3>
-                    <p>设计演示文稿和图形</p>
-                  </div>
-                  <div className="tool-action">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                      <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
-                  </div>
-                </a>
-              </div>
-            </section>
-
-            {/* Account Management Section */}
-            <section className="account-section">
-              <div className="section-header">
-                <h2 className="section-title">账户管理</h2>
-              </div>
-              <div className="account-grid">
-                <Link href="/reset-password" legacyBehavior>
-                  <a className="account-card">
-                    <div className="account-icon">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                    </div>
-                    <div className="account-info">
-                      <h3>重置密码</h3>
-                      <p>更改您的账户密码</p>
-                    </div>
-                  </a>
-                </Link>
-
-                <button onClick={() => setIsDeleteModalOpen(true)} className="account-card delete">
-                  <div className="account-icon delete">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      <line x1="10" y1="11" x2="10" y2="17"></line>
-                      <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
-                  </div>
-                  <div className="account-info">
-                    <h3>删除账户</h3>
-                    <p>永久删除您的账户和数据</p>
-                  </div>
-                </button>
-              </div>
-            </section>
+        <div className="signatures">
+          <div className="signature">
+            <p>University Registrar</p>
           </div>
-
-          {/* Footer */}
-          <footer className="footer">
-            <div className="footer-content">
-              <p>
-                © {currentYear} 孔子学院 | <a href="https://kzxy.edu.kg">kzxy.edu.kg</a>
-              </p>
-            </div>
-          </footer>
-        </main>
-
-        {/* Delete Account Modal */}
-        {isDeleteModalOpen && (
-          <div className="modal-overlay">
-            <div className="modal">
-              <div className="modal-header">
-                <h3>删除账户</h3>
-                <button className="modal-close" onClick={() => setIsDeleteModalOpen(false)}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
-              <div className="modal-body">
-                <div className="modal-icon warning">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="48"
-                    height="48"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
-                </div>
-                <h4>您确定要删除您的账户吗？</h4>
-                <p>此操作是永久性的，无法撤消。您的所有数据，包括电子邮件和个人信息，将被永久删除。</p>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>
-                  取消
-                </button>
-                <button className="btn btn-danger" onClick={handleDelete} disabled={isDeleting}>
-                  {isDeleting ? <span className="loading-spinner small"></span> : "删除账户"}
-                </button>
-              </div>
-            </div>
+          <div className="signature">
+            <p>Dean of Academic Affairs</p>
           </div>
-        )}
+        </div>
+
+        <div className="barcode-container">
+          {displaySid !== "N/A" ? (
+            <svg id="barcode-svg" width="300" height="70"></svg>
+          ) : (
+            <p className="barcode-placeholder">Barcode N/A (ID Missing)</p>
+          )}
+        </div>
+
+        <div className="footer">
+          <p>This is an official academic transcript issued by Confucius Institute at Kyrgyz National University.</p>
+          <p>
+            Document ID: {transcriptNo} • Generated: {printDate}
+          </p>
+          <p>To verify the authenticity of this document, please visit verify.kzxy.edu.kg</p>
+        </div>
       </div>
 
       <style jsx>{`
-        /* Google-inspired Design System */
-        :global(body) {
+        body {
           margin: 0;
-          padding: 0;
-          font-family: 'Noto Sans SC', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-          background-color: #f8f9fa;
-          color: #202124;
-          line-height: 1.5;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-        }
-
-        /* Error Page */
-        .error-page {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
           padding: 20px;
-          background-color: #f8f9fa;
+          background: #f5f5f5;
+          font-family: 'Montserrat', Arial, sans-serif;
+          color: #333;
+          line-height: 1.4;
         }
-
-        .error-container {
-          max-width: 480px;
-          width: 100%;
-          text-align: center;
-          background: white;
-          border-radius: 16px;
-          padding: 40px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-        }
-
-        .error-icon {
-          color: #ea4335;
-          margin-bottom: 24px;
-        }
-
-        .error-container h1 {
-          font-size: 24px;
-          font-weight: 500;
-          margin: 0 0 16px;
-          color: #202124;
-        }
-
-        .error-container p {
-          font-size: 16px;
-          color: #5f6368;
-          margin: 0 0 32px;
-        }
-
-        .error-actions {
-          display: flex;
-          gap: 12px;
-          justify-content: center;
-        }
-
-        /* Layout */
-        .app-container {
-          display: flex;
-          min-height: 100vh;
-        }
-
-        /* Sidebar */
-        .sidebar {
-          width: 280px;
-          background-color: white;
-          border-right: 1px solid #dadce0;
-          display: flex;
-          flex-direction: column;
+        
+        .watermark {
           position: fixed;
-          top: 0;
-          left: 0;
-          bottom: 0;
-          z-index: 100;
-          overflow-y: auto;
-          transition: transform 0.3s ease;
-        }
-
-        .sidebar-header {
-          padding: 16px 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          border-bottom: 1px solid #dadce0;
-        }
-
-        .sidebar-logo {
-          height: 40px;
-          width: auto;
-        }
-
-        .close-menu-btn {
-          display: none;
-          background: none;
-          border: none;
-          color: #5f6368;
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 50%;
-        }
-
-        .close-menu-btn:hover {
-          background-color: #f1f3f4;
-        }
-
-        .sidebar-user {
-          padding: 24px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          border-bottom: 1px solid #dadce0;
-        }
-
-        .user-avatar {
-          width: 40px;
-          height: 40px;
-          background-color: #4285f4;
-          color: white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          font-weight: 500;
-        }
-
-        .user-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .user-name {
-          font-size: 16px;
-          font-weight: 500;
-          margin: 0 0 4px;
-          color: #202124;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg);
+          font-size: 120px;
+          color: rgba(0, 102, 51, 0.03);
+          pointer-events: none;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .user-email {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .sidebar-nav {
-          flex: 1;
-          padding: 16px 8px;
-          overflow-y: auto;
-        }
-
-        .nav-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .nav-item {
-          margin: 2px 0;
-        }
-
-        .nav-divider {
-          height: 1px;
-          background-color: #dadce0;
-          margin: 8px 16px;
-        }
-
-        .nav-link {
-          display: flex;
-          align-items: center;
-          padding: 12px 16px;
-          border-radius: 0 16px 16px 0;
-          color: #202124;
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background-color 0.2s;
-          gap: 16px;
-          cursor: pointer;
-          border: none;
-          background: none;
-          width: 100%;
-          text-align: left;
-        }
-
-        .nav-link:hover {
-          background-color: #f1f3f4;
-        }
-
-        .nav-item.active .nav-link {
-          background-color: #e8f0fe;
-          color: #1a73e8;
-        }
-
-        .nav-item.active .nav-link svg {
-          color: #1a73e8;
-        }
-
-        .nav-link svg {
-          color: #5f6368;
-          flex-shrink: 0;
-        }
-
-        .nav-link.logout {
-          color: #5f6368;
-        }
-
-        .nav-link.delete {
-          color: #ea4335;
-        }
-
-        .nav-link.delete svg {
-          color: #ea4335;
-        }
-
-        .sidebar-footer {
-          padding: 16px 24px;
-          border-top: 1px solid #dadce0;
-          font-size: 12px;
-          color: #5f6368;
-          text-align: center;
-        }
-
-        .sidebar-footer p {
-          margin: 0;
-        }
-
-        .sidebar-footer a {
-          color: #1a73e8;
-          text-decoration: none;
-        }
-
-        .sidebar-footer a:hover {
-          text-decoration: underline;
-        }
-
-        /* Main Content */
-        .main-content {
-          flex: 1;
-          margin-left: 280px;
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-        }
-
-        /* Top Bar */
-        .top-bar {
-          height: 64px;
-          background-color: white;
-          border-bottom: 1px solid #dadce0;
-          display: flex;
-          align-items: center;
-          padding: 0 24px;
-          position: sticky;
-          top: 0;
-          z-index: 10;
-        }
-
-        .menu-toggle {
-          display: none;
-          background: none;
-          border: none;
-          color: #5f6368;
-          cursor: pointer;
-          padding: 8px;
-          margin-right: 16px;
-          border-radius: 50%;
-        }
-
-        .menu-toggle:hover {
-          background-color: #f1f3f4;
-        }
-
-        .page-title {
-          font-size: 20px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0;
-          flex: 1;
-        }
-
-        .top-bar-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .logout-btn {
-          background: none;
-          border: none;
-          color: #5f6368;
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 50%;
-          display: none;
-        }
-
-        .logout-btn:hover {
-          background-color: #f1f3f4;
-        }
-
-        /* Alert */
-        .alert {
-          background-color: #fef7e0;
-          color: #b06000;
-          padding: 12px 24px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 16px 24px 0;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-
-        .alert svg {
-          flex-shrink: 0;
-          color: #f29900;
-        }
-
-        /* Content */
-        .content {
-          flex: 1;
-          padding: 24px;
-        }
-
-        /* Welcome Section */
-        .welcome-section {
-          margin-bottom: 32px;
-        }
-
-        .welcome-text h2 {
-          font-size: 28px;
-          font-weight: 400;
-          color: #202124;
-          margin: 0 0 8px;
-        }
-
-        .welcome-text p {
-          font-size: 16px;
-          color: #5f6368;
-          margin: 0;
-        }
-
-        /* Section Styling */
-        .section-header {
-          margin-bottom: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .section-title {
-          font-size: 20px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0;
-        }
-
-        /* Info Section */
-        .info-section {
-          margin-bottom: 32px;
-        }
-
-        .info-card {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          padding: 24px;
-        }
-
-        .info-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 24px;
-        }
-
-        .info-item {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .info-label {
-          font-size: 12px;
-          font-weight: 500;
-          color: #5f6368;
-          margin-bottom: 8px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .info-value {
-          font-size: 16px;
-          color: #202124;
-          word-break: break-word;
-        }
-
-        .info-value.highlight {
-          color: #1a73e8;
-          font-family: monospace;
-          font-weight: 500;
-        }
-
-        /* Services Section */
-        .services-section {
-          margin-bottom: 32px;
-        }
-
-        .services-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 16px;
-        }
-
-        .service-card {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          padding: 24px;
-          text-decoration: none;
-          color: inherit;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          transition: box-shadow 0.2s, transform 0.2s;
-        }
-
-        .service-card:hover {
-          box-shadow: 0 4px 8px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 0 rgba(60, 64, 67, 0.15);
-          transform: translateY(-2px);
-        }
-
-        .service-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 16px;
-        }
-
-        .service-icon svg {
-          color: white;
-        }
-
-        .service-icon.blue {
-          background-color: #4285f4;
-        }
-
-        .service-icon.green {
-          background-color: #34a853;
-        }
-
-        .service-icon.red {
-          background-color: #ea4335;
-        }
-
-        .service-icon.purple {
-          background-color: #9c27b0;
-        }
-
-        .service-card h3 {
-          font-size: 16px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0 0 8px;
-        }
-
-        .service-card p {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-        }
-
-        /* Tools Section */
-        .tools-section {
-          margin-bottom: 32px;
-        }
-
-        .tools-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 8px;
-        }
-
-        .tool-card {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          padding: 16px;
-          text-decoration: none;
-          color: inherit;
-          display: flex;
-          align-items: center;
-          transition: background-color 0.2s;
-        }
-
-        .tool-card:hover {
-          background-color: #f8f9fa;
-        }
-
-        .tool-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 24px;
-          background-color: #f1f3f4;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-right: 16px;
-          flex-shrink: 0;
-        }
-
-        .tool-icon svg {
-          color: #5f6368;
-        }
-
-        .tool-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .tool-info h3 {
-          font-size: 16px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0 0 4px;
-        }
-
-        .tool-info p {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .tool-action {
-          color: #5f6368;
-          margin-left: 16px;
-          flex-shrink: 0;
-        }
-
-        /* Account Section */
-        .account-section {
-          margin-bottom: 32px;
-        }
-
-        .account-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 16px;
-        }
-
-        .account-card {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          padding: 16px;
-          text-decoration: none;
-          color: inherit;
-          display: flex;
-          align-items: center;
-          transition: background-color 0.2s;
-          border: none;
-          text-align: left;
-          cursor: pointer;
-          width: 100%;
-        }
-
-        .account-card:hover {
-          background-color: #f8f9fa;
-        }
-
-        .account-card.delete {
-          color: #ea4335;
-        }
-
-        .account-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 24px;
-          background-color: #f1f3f4;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-right: 16px;
-          flex-shrink: 0;
-        }
-
-        .account-icon svg {
-          color: #5f6368;
-        }
-
-        .account-icon.delete svg {
-          color: #ea4335;
-        }
-
-        .account-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .account-info h3 {
-          font-size: 16px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0 0 4px;
-        }
-
-        .account-card.delete .account-info h3 {
-          color: #ea4335;
-        }
-
-        .account-info p {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-        }
-
-        /* Footer */
-        .footer {
-          background-color: white;
-          border-top: 1px solid #dadce0;
-          padding: 16px 24px;
-          margin-top: auto;
-        }
-
-        .footer-content {
-          text-align: center;
-          font-size: 12px;
-          color: #5f6368;
-        }
-
-        .footer-content p {
-          margin: 0;
-        }
-
-        .footer-content a {
-          color: #1a73e8;
-          text-decoration: none;
-        }
-
-        .footer-content a:hover {
-          text-decoration: underline;
-        }
-
-        /* Modal */
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: rgba(32, 33, 36, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
           z-index: 1000;
-          padding: 24px;
         }
-
-        .modal {
-          background-color: white;
+        
+        .transcript {
+          max-width: 800px;
+          margin: 0 auto;
+          background: #fff;
+          padding: 30px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+          border-bottom: 3px solid #006633;
+          padding-bottom: 20px;
+          position: relative;
+        }
+        
+        .header img.logo {
+          max-width: 200px;
+          margin-bottom: 20px;
+        }
+        
+        .title {
+          color: #006633;
+          margin: 10px 0;
+          font-size: 24px;
+          font-weight: bold;
+        }
+        
+        .print-date {
+          color: #666;
+          font-size: 0.9em;
+        }
+        
+        .verification-section {
+          text-align: center;
+          margin-top: 20px;
+          padding: 15px;
+          background: #f8f8f8;
           border-radius: 8px;
-          box-shadow: 0 24px 38px 3px rgba(0, 0, 0, 0.14), 0 9px 46px 8px rgba(0, 0, 0, 0.12), 0 11px 15px -7px rgba(0, 0, 0, 0.2);
+        }
+        
+        .verification-code {
+          font-family: monospace;
+          background: #fff;
+          padding: 4px 8px;
+          border-radius: 4px;
+          border: 1px solid #ddd;
+        }
+        
+        .section {
+          margin: 20px 0;
+        }
+        
+        .section-title {
+          background: #006633;
+          color: #fff;
+          padding: 8px 15px;
+          margin-bottom: 15px;
+          font-weight: bold;
+        }
+        
+        table {
           width: 100%;
-          max-width: 480px;
-          max-height: 90vh;
-          display: flex;
-          flex-direction: column;
-          animation: modal-in 0.2s ease-out;
+          border-collapse: collapse;
+          margin: 10px 0;
         }
-
-        @keyframes modal-in {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+        
+        th, td {
+          padding: 8px;
+          border: 1px solid #ddd;
+          font-size: 0.9em;
         }
-
-        .modal-header {
-          padding: 16px 24px;
-          border-bottom: 1px solid #dadce0;
+        
+        th {
+          background: #006633;
+          color: #fff;
+          font-weight: bold;
+        }
+        
+        .student-info td {
+          width: 25%;
+        }
+        
+        .term-title {
+          background: #FFC72C;
+          color: #000;
+          padding: 8px 15px;
+          margin: 20px 0 10px;
+          font-weight: bold;
+        }
+        
+        .term-summary {
+          text-align: right;
+          font-weight: bold;
+          margin: 10px 0;
+          color: #006633;
+        }
+        
+        .signatures {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 2px solid #006633;
           display: flex;
-          align-items: center;
           justify-content: space-between;
         }
-
-        .modal-header h3 {
-          font-size: 18px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0;
+        
+        .signature {
+          text-align: center;
+          width: 45%;
         }
-
-        .modal-close {
-          background: none;
-          border: none;
-          color: #5f6368;
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 50%;
+        
+        .signature p {
+          color: #006633;
+          font-weight: bold;
+          margin: 5px 0;
+          padding-top: 40px;
+          border-top: 1px solid #006633;
+        }
+        
+        .barcode-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        
+        .barcode-placeholder {
+          color: grey;
+          font-size: 12px;
+          margin-top: 5px;
+          height: 70px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
-
-        .modal-close:hover {
-          background-color: #f1f3f4;
+        
+        .footer {
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 2px solid #006633;
+          text-align: center;
+          color: #666;
         }
-
-        .modal-body {
-          padding: 24px;
-          overflow-y: auto;
+        
+        tr:nth-child(even) {
+          background-color: #f9f9f9;
+        }
+        
+        tr:hover {
+          background-color: #f5f5f5;
+        }
+        
+        .grading-system {
+          width: 100%;
+        }
+        
+        .grading-system td, .grading-system th {
+          width: 25%;
           text-align: center;
         }
-
-        .modal-icon {
-          margin-bottom: 24px;
-        }
-
-        .modal-icon.warning {
-          color: #ea4335;
-        }
-
-        .modal-body h4 {
-          font-size: 16px;
-          font-weight: 500;
-          color: #202124;
-          margin: 0 0 16px;
-        }
-
-        .modal-body p {
-          font-size: 14px;
-          color: #5f6368;
-          margin: 0;
-          line-height: 1.5;
-        }
-
-        .modal-footer {
-          padding: 16px 24px;
-          border-top: 1px solid #dadce0;
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-        }
-
-        /* Buttons */
-        .btn {
-          font-size: 14px;
-          font-weight: 500;
-          padding: 8px 24px;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: background-color 0.2s;
-          border: none;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          height: 36px;
-        }
-
-        .btn-primary {
-          background-color: #1a73e8;
-          color: white;
-        }
-
-        .btn-primary:hover {
-          background-color: #1765cc;
-        }
-
-        .btn-secondary {
-          background-color: transparent;
-          color: #1a73e8;
-        }
-
-        .btn-secondary:hover {
-          background-color: #f1f3f4;
-        }
-
-        .btn-danger {
-          background-color: #ea4335;
-          color: white;
-        }
-
-        .btn-danger:hover {
-          background-color: #d93025;
-        }
-
-        .btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        /* Loading Spinner */
-        .loading-spinner {
-          width: 24px;
-          height: 24px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-radius: 50%;
-          border-top-color: white;
-          animation: spin 0.8s linear infinite;
-        }
-
-        .loading-spinner.small {
-          width: 16px;
-          height: 16px;
-          border-width: 2px;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        /* Responsive Styles */
-        @media (max-width: 1024px) {
-          .services-grid {
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        
+        @media print {
+          body {
+            background-color: #fff;
+            padding: 0;
+            margin: 0;
           }
           
-          .account-grid {
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          }
-        }
-
-        @media (max-width: 768px) {
-          .sidebar {
-            transform: translateX(-100%);
-            box-shadow: 0 8px 10px -5px rgba(0, 0, 0, 0.2), 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12);
-          }
-
-          .sidebar-open {
-            transform: translateX(0);
-          }
-
-          .close-menu-btn {
-            display: block;
-          }
-
-          .main-content {
-            margin-left: 0;
-          }
-
-          .menu-toggle {
-            display: block;
-          }
-
-          .logout-btn {
-            display: block;
-          }
-
-          .info-grid {
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          }
-
-          .services-grid {
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          }
-          
-          .account-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .content {
-            padding: 16px;
-          }
-
-          .welcome-text h2 {
-            font-size: 24px;
-          }
-
-          .section-title {
-            font-size: 18px;
-          }
-
-          .info-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .services-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .modal {
+          .transcript {
+            box-shadow: none;
+            margin: 0;
             max-width: 100%;
+            padding: 20px;
+            border: none;
+          }
+          
+          .watermark {
+            color: rgba(0, 102, 51, 0.03) !important;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .transcript {
+            padding: 15px;
+          }
+          
+          .student-info td {
+            display: block;
+            width: 100%;
+          }
+          
+          .student-info tr {
+            display: block;
+            margin-bottom: 10px;
+          }
+          
+          .signatures {
+            flex-direction: column;
+            align-items: center;
+          }
+          
+          .signature {
+            width: 80%;
+            margin-bottom: 20px;
           }
         }
       `}</style>
