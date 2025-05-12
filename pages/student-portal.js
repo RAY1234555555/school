@@ -877,4 +877,1197 @@ export default function StudentPortal({ initialFullName, initialEmail, initialSt
                     <h4>CHN102</h4>
                     <span className="course-badge">进行中</span>
                   </div>
-                  \
+                  <h3 className="course-title">Elementary Chinese Reading</h3>
+                  <p className="course-info">
+                    <span className="course-term">Fall 2025</span>
+                    <span className="course-credits">3.0 学分</span>
+                  </p>
+                  <div className="course-progress">
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{ width: "30%" }}></div>
+                    </div>
+                    <span className="progress-text">30% 完成</span>
+                  </div>
+                </div>
+
+                <div className="course-card">
+                  <div className="course-header">
+                    <h4>CHN201</h4>
+                    <span className="course-badge">进行中</span>
+                  </div>
+                  <h3 className="course-title">Intermediate Chinese Listening</h3>
+                  <p className="course-info">
+                    <span className="course-term">Fall 2025</span>
+                    <span className="course-credits">3.0 学分</span>
+                  </p>
+                  <div className="course-progress">
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{ width: "25%" }}></div>
+                    </div>
+                    <span className="progress-text">25% 完成</span>
+                  </div>
+                </div>
+
+                <div className="course-card">
+                  <div className="course-header">
+                    <h4>CUL100</h4>
+                    <span className="course-badge">进行中</span>
+                  </div>
+                  <h3 className="course-title">Chinese Culture and Society</h3>
+                  <p className="course-info">
+                    <span className="course-term">Fall 2025</span>
+                    <span className="course-credits">3.0 学分</span>
+                  </p>
+                  <div className="course-progress">
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{ width: "35%" }}></div>
+                    </div>
+                    <span className="progress-text">35% 完成</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeTab === "tools" && (
+            <section className="tools-section">
+              <div className="section-header">
+                <h3 className="section-title">工具</h3>
+              </div>
+              <div className="tools-grid">
+                <a href="https://account.adobe.com/" className="tool-card" target="_blank" rel="noopener noreferrer">
+                  <div className="tool-icon">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                  </div>
+                  <div className="tool-text">
+                    <h4>Adobe Express</h4>
+                    <p>创建图形、视频和网页</p>
+                  </div>
+                  <div className="tool-action">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </div>
+                </a>
+
+                <a href="https://www.canva.com/login" className="tool-card" target="_blank" rel="noopener noreferrer">
+                  <div className="tool-icon">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </div>
+                  <div className="tool-text">
+                    <h4>Canva 餐厅</h4>
+                    <p>设计演示文稿和图形</p>
+                  </div>
+                  <div className="tool-action">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </div>
+                </a>
+              </div>
+            </section>
+          )}
+
+          {activeTab === "account" && (
+            <section className="account-section">
+              <div className="section-header">
+                <h3 className="section-title">账户管理</h3>
+              </div>
+              <div className="account-info">
+                <div className="account-avatar">{initialFullName ? initialFullName.charAt(0).toUpperCase() : "S"}</div>
+                <div className="account-details">
+                  <h4>{initialFullName || "学生"}</h4>
+                  <p>{initialEmail || "加载中..."}</p>
+                  <p>学生ID: {initialStudentId || "加载中..."}</p>
+                </div>
+              </div>
+              <div className="account-actions">
+                <Link href="/reset-password" legacyBehavior>
+                  <a className="account-action-button">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    重置密码
+                  </a>
+                </Link>
+                <button onClick={() => setIsDeleteModalOpen(true)} className="account-action-button danger">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                  删除账户
+                </button>
+              </div>
+            </section>
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="portal-footer">
+          <p>
+            © {currentYear} 孔子学院 | <a href="https://kzxy.edu.kg">kzxy.edu.kg</a>
+          </p>
+        </footer>
+
+        {/* Delete Account Modal */}
+        {isDeleteModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>删除账户</h3>
+                <button className="modal-close" onClick={() => setIsDeleteModalOpen(false)}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="modal-icon warning">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+                <h4>您确定要删除您的账户吗？</h4>
+                <p>此操作是永久性的，无法撤消。您的所有数据，包括电子邮件和个人信息，将被永久删除。</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>
+                  取消
+                </button>
+                <button className="btn btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? "处理中..." : "删除账户"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx>{`
+        /* Base Styles */
+        :global(body) {
+          margin: 0;
+          padding: 0;
+          font-family: 'Google Sans', 'Noto Sans SC', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          background-color: #f8f9fa;
+          color: #202124;
+          line-height: 1.5;
+        }
+
+        /* Portal Container */
+        .portal-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0;
+        }
+
+        /* Header */
+        .portal-header {
+          background-color: #fff;
+          color: #202124;
+          box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+          margin-bottom: 20px;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+
+        .header-content {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 20px;
+        }
+
+        .logo-section {
+          display: flex;
+          align-items: center;
+        }
+
+        .portal-logo {
+          height: 40px;
+          margin-right: 12px;
+        }
+
+        .portal-title {
+          font-size: 20px;
+          margin: 0;
+          font-weight: 500;
+          color: #1a73e8;
+        }
+
+        .user-section {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .search-bar {
+          display: flex;
+          align-items: center;
+          background-color: #f1f3f4;
+          border-radius: 24px;
+          padding: 8px 16px;
+          width: 300px;
+          transition: background-color 0.2s;
+        }
+
+        .search-bar:hover {
+          background-color: #e8eaed;
+        }
+
+        .search-icon {
+          color: #5f6368;
+          margin-right: 8px;
+        }
+
+        .search-input {
+          border: none;
+          background: transparent;
+          outline: none;
+          width: 100%;
+          font-size: 14px;
+          color: #202124;
+        }
+
+        .user-menu {
+          position: relative;
+        }
+
+        .user-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background-color: #1a73e8;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 500;
+          cursor: pointer;
+          transition: box-shadow 0.2s;
+        }
+
+        .user-avatar:hover {
+          box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+        }
+
+        .user-dropdown {
+          position: absolute;
+          top: 45px;
+          right: 0;
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(60, 64, 67, 0.3);
+          width: 280px;
+          z-index: 10;
+          display: none;
+        }
+
+        .user-menu:hover .user-dropdown {
+          display: block;
+        }
+
+        .dropdown-header {
+          padding: 16px;
+          text-align: center;
+          border-bottom: 1px solid #e8eaed;
+        }
+
+        .dropdown-header .user-name {
+          font-weight: 500;
+          margin: 0 0 4px 0;
+        }
+
+        .dropdown-header .user-email {
+          margin: 0;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        .dropdown-divider {
+          height: 1px;
+          background-color: #e8eaed;
+          margin: 8px 0;
+        }
+
+        .dropdown-item {
+          display: block;
+          width: 100%;
+          padding: 12px 16px;
+          text-align: left;
+          background: none;
+          border: none;
+          font-size: 14px;
+          color: #202124;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+
+        .dropdown-item:hover {
+          background-color: #f1f3f4;
+        }
+
+        .dropdown-item.danger {
+          color: #d93025;
+        }
+
+        .dropdown-item.danger:hover {
+          background-color: #fce8e6;
+        }
+
+        /* Navigation */
+        .portal-nav {
+          background-color: #fff;
+          border-top: 1px solid #e8eaed;
+        }
+
+        .nav-tabs {
+          display: flex;
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          overflow-x: auto;
+        }
+
+        .nav-tab {
+          margin: 0;
+        }
+
+        .tab-button {
+          display: flex;
+          align-items: center;
+          padding: 12px 20px;
+          background: none;
+          border: none;
+          color: #5f6368;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: color 0.2s;
+          position: relative;
+        }
+
+        .tab-button:hover {
+          color: #1a73e8;
+        }
+
+        .tab-icon {
+          margin-right: 8px;
+        }
+
+        .nav-tab.active .tab-button {
+          color: #1a73e8;
+        }
+
+        .nav-tab.active .tab-button::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background-color: #1a73e8;
+        }
+
+        /* Alert Banner */
+        .alert-banner {
+          background-color: #fef7e0;
+          color: #b06000;
+          padding: 12px 20px;
+          border-radius: 8px;
+          margin: 0 20px 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        /* Main Content */
+        .portal-content {
+          padding: 0 20px 20px;
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+
+        /* Welcome Section */
+        .welcome-section {
+          background-color: white;
+          padding: 24px;
+          border-radius: 8px;
+          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .welcome-content h2 {
+          margin-top: 0;
+          margin-bottom: 8px;
+          color: #202124;
+          font-size: 22px;
+          font-weight: 500;
+        }
+
+        .welcome-content p {
+          margin: 0;
+          color: #5f6368;
+        }
+
+        .welcome-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .action-button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          border: none;
+        }
+
+        .action-button.primary {
+          background-color: #1a73e8;
+          color: white;
+        }
+
+        .action-button.primary:hover {
+          background-color: #1765cc;
+        }
+
+        /* Info Card */
+        .info-card {
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+          overflow: hidden;
+        }
+
+        .card-header {
+          padding: 16px 24px;
+          border-bottom: 1px solid #e8eaed;
+        }
+
+        .card-title {
+          margin: 0;
+          color: #202124;
+          font-size: 16px;
+          font-weight: 500;
+        }
+
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 16px;
+          padding: 24px;
+        }
+
+        .info-item {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .info-label {
+          font-size: 12px;
+          color: #5f6368;
+          margin-bottom: 4px;
+        }
+
+        .info-value {
+          font-size: 14px;
+          font-weight: 500;
+          color: #202124;
+        }
+
+        .info-value.highlight {
+          color: #1a73e8;
+          font-family: monospace;
+          font-size: 16px;
+        }
+
+        /* Section Styles */
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+
+        .section-title {
+          margin: 0;
+          color: #202124;
+          font-size: 16px;
+          font-weight: 500;
+        }
+
+        .section-action {
+          background: none;
+          border: none;
+          color: #5f6368;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          transition: background-color 0.2s;
+        }
+
+        .section-action:hover {
+          background-color: #f1f3f4;
+        }
+
+        /* Quick Links */
+        .quick-links, .external-tools, .documents-section, .courses-section, .tools-section, .account-section {
+          background-color: white;
+          padding: 24px;
+          border-radius: 8px;
+          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+        }
+
+        .links-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 16px;
+        }
+
+        .link-card {
+          display: flex;
+          align-items: center;
+          padding: 16px;
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          text-decoration: none;
+          color: inherit;
+          transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .link-card:hover {
+          box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+          transform: translateY(-2px);
+        }
+
+        .link-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 16px;
+          flex-shrink: 0;
+        }
+
+        .link-icon svg {
+          color: white;
+        }
+
+        .link-icon.blue {
+          background-color: #1a73e8;
+        }
+
+        .link-icon.green {
+          background-color: #34a853;
+        }
+
+        .link-icon.red {
+          background-color: #ea4335;
+        }
+
+        .link-icon.purple {
+          background-color: #9334e6;
+        }
+
+        .link-icon.orange {
+          background-color: #fbbc04;
+        }
+
+        .link-icon.teal {
+          background-color: #00bfa5;
+        }
+
+        .link-text h4 {
+          margin: 0 0 4px 0;
+          font-size: 16px;
+          font-weight: 500;
+          color: #202124;
+        }
+
+        .link-text p {
+          margin: 0;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        /* Tools Grid */
+        .tools-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 16px;
+        }
+
+        .tool-card {
+          display: flex;
+          align-items: center;
+          padding: 16px;
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          text-decoration: none;
+          color: inherit;
+          transition: background-color 0.2s;
+          position: relative;
+        }
+
+        .tool-card:hover {
+          background-color: #f1f3f4;
+        }
+
+        .tool-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background-color: #e8eaed;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 16px;
+          flex-shrink: 0;
+        }
+
+        .tool-icon svg {
+          color: #5f6368;
+        }
+
+        .tool-text {
+          flex: 1;
+        }
+
+        .tool-text h4 {
+          margin: 0 0 4px 0;
+          font-size: 16px;
+          font-weight: 500;
+          color: #202124;
+        }
+
+        .tool-text p {
+          margin: 0;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        .tool-action {
+          color: #5f6368;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+
+        .tool-card:hover .tool-action {
+          opacity: 1;
+        }
+
+        /* Documents Section */
+        .documents-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+          gap: 16px;
+        }
+
+        .document-card {
+          display: flex;
+          align-items: center;
+          padding: 16px;
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          text-decoration: none;
+          color: inherit;
+          transition: box-shadow 0.2s;
+        }
+
+        .document-card:hover {
+          box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+        }
+
+        .document-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 4px;
+          background-color: #e8eaed;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 16px;
+          flex-shrink: 0;
+        }
+
+        .document-info h4 {
+          margin: 0 0 4px 0;
+          font-size: 16px;
+          font-weight: 500;
+        }
+
+        .document-info p {
+          margin: 0;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        /* Courses Section */
+        .courses-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 16px;
+        }
+
+        .course-card {
+          background-color: #f8f9fa;
+          border-radius: 8px;
+          padding: 16px;
+          transition: box-shadow 0.2s;
+        }
+
+        .course-card:hover {
+          box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+        }
+
+        .course-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .course-header h4 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 500;
+          color: #5f6368;
+        }
+
+        .course-badge {
+          background-color: #e6f4ea;
+          color: #137333;
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-weight: 500;
+        }
+
+        .course-title {
+          margin: 0 0 8px 0;
+          font-size: 16px;
+          font-weight: 500;
+          color: #202124;
+        }
+
+        .course-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 12px;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        .course-progress {
+          margin-top: 12px;
+        }
+
+        .progress-bar {
+          height: 4px;
+          background-color: #e8eaed;
+          border-radius: 2px;
+          overflow: hidden;
+          margin-bottom: 4px;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background-color: #1a73e8;
+        }
+
+        .progress-text {
+          font-size: 12px;
+          color: #5f6368;
+        }
+
+        /* Account Section */
+        .account-info {
+          display: flex;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+
+        .account-avatar {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background-color: #1a73e8;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          font-weight: 500;
+          margin-right: 20px;
+        }
+
+        .account-details h4 {
+          margin: 0 0 8px 0;
+          font-size: 18px;
+          font-weight: 500;
+        }
+
+        .account-details p {
+          margin: 0 0 4px 0;
+          font-size: 14px;
+          color: #5f6368;
+        }
+
+        .account-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 24px;
+        }
+
+        .account-action-button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          border-radius: 4px;
+          background-color: #f8f9fa;
+          border: 1px solid #dadce0;
+          color: #202124;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          text-decoration: none;
+        }
+
+        .account-action-button:hover {
+          background-color: #f1f3f4;
+        }
+
+        .account-action-button.danger {
+          color: #d93025;
+          border-color: #fad2cf;
+        }
+
+        .account-action-button.danger:hover {
+          background-color: #fce8e6;
+        }
+
+        /* Footer */
+        .portal-footer {
+          text-align: center;
+          margin-top: 30px;
+          padding: 20px;
+          color: #5f6368;
+          font-size: 14px;
+          border-top: 1px solid #e8eaed;
+        }
+
+        .portal-footer a {
+          color: #1a73e8;
+          text-decoration: none;
+        }
+
+        .portal-footer a:hover {
+          text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(32, 33, 36, 0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .modal {
+          background-color: white;
+          border-radius: 8px;
+          width: 100%;
+          max-width: 480px;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+          overflow: hidden;
+        }
+
+        .modal-header {
+          padding: 16px 24px;
+          border-bottom: 1px solid #e8eaed;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .modal-header h3 {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 500;
+          color: #202124;
+        }
+
+        .modal-close {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #5f6368;
+          padding: 8px;
+          border-radius: 50%;
+          transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+          background-color: #f1f3f4;
+        }
+
+        .modal-body {
+          padding: 24px;
+          text-align: center;
+        }
+
+        .modal-icon.warning {
+          color: #d93025;
+          margin-bottom: 16px;
+        }
+
+        .modal-body h4 {
+          margin: 0 0 12px 0;
+          font-size: 18px;
+          font-weight: 500;
+          color: #d93025;
+        }
+
+        .modal-body p {
+          margin: 0;
+          color: #5f6368;
+          line-height: 1.5;
+        }
+
+        .modal-footer {
+          padding: 16px 24px;
+          border-top: 1px solid #e8eaed;
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+        }
+
+        .btn {
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          border: none;
+          transition: background-color 0.2s;
+        }
+
+        .btn-secondary {
+          background-color: #f8f9fa;
+          color: #202124;
+          border: 1px solid #dadce0;
+        }
+
+        .btn-secondary:hover {
+          background-color: #f1f3f4;
+        }
+
+        .btn-danger {
+          background-color: #d93025;
+          color: white;
+        }
+
+        .btn-danger:hover {
+          background-color: #c5221f;
+        }
+
+        .btn:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+          .header-content {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .logo-section {
+            margin-bottom: 12px;
+          }
+
+          .user-section {
+            width: 100%;
+            justify-content: space-between;
+          }
+
+          .search-bar {
+            width: 100%;
+            max-width: 250px;
+          }
+
+          .welcome-section {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .welcome-actions {
+            margin-top: 16px;
+          }
+
+          .info-grid, .links-grid, .tools-grid, .documents-grid, .courses-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .portal-container {
+            padding: 0;
+          }
+
+          .header-content, .portal-content {
+            padding: 12px;
+          }
+
+          .portal-title {
+            font-size: 18px;
+          }
+
+          .search-bar {
+            display: none;
+          }
+
+          .nav-tabs {
+            justify-content: space-between;
+          }
+
+          .tab-button {
+            padding: 12px 8px;
+            font-size: 12px;
+          }
+
+          .welcome-section, .info-card, .quick-links, .external-tools, .documents-section, .courses-section, .tools-section, .account-section {
+            padding: 16px;
+          }
+
+          .welcome-content h2 {
+            font-size: 20px;
+          }
+
+          .card-title, .section-title {
+            font-size: 16px;
+          }
+        }
+      `}</style>
+    </>
+  )
+}
