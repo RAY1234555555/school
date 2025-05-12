@@ -121,6 +121,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
   const [academicStanding, setAcademicStanding] = useState("Good Standing")
   const [degreeProgress, setDegreeProgress] = useState([])
   const [currentTerm, setCurrentTerm] = useState("")
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // Helpers remain the same
   const seededRandom = useCallback((seed) => {
@@ -174,7 +175,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
     { id: "LIT100", title: "Modern Chinese Literature", credits: 3.0 },
   ]
 
-  // Updated to generate random courses for each session
+  // Simplified to generate fewer terms with fixed number of courses
   const generateCoursesData = useCallback(
     (studentIdSeed) => {
       const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
@@ -199,71 +200,19 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         totalEarned = 0,
         totalQualityPoints = 0
 
-      // Generate realistic academic terms
+      // Simplified terms - just use 2 terms
       const currentDate = new Date()
       const currentYear = currentDate.getFullYear()
-      const currentMonth = currentDate.getMonth() + 1
+      
+      // Just use Fall and Spring of the current year
+      const terms = [`Fall ${currentYear-1}`, `Spring ${currentYear}`]
+      setCurrentTerm(`Spring ${currentYear}`)
 
-      // Determine current term
-      let currentTermSeason, currentTermYear
-      if (currentMonth >= 8) {
-        // Fall term (Aug-Dec)
-        currentTermSeason = "Fall"
-        currentTermYear = currentYear
-      } else if (currentMonth >= 1 && currentMonth <= 5) {
-        // Spring term (Jan-May)
-        currentTermSeason = "Spring"
-        currentTermYear = currentYear
-      } else {
-        // Summer term (Jun-Jul)
-        currentTermSeason = "Summer"
-        currentTermYear = currentYear
-      }
-
-      const currentTermText = `${currentTermSeason} ${currentTermYear}`
-      setCurrentTerm(currentTermText)
-
-      // Generate past terms (going back 2 years max)
-      const terms = []
-      const startYear = currentYear - 2
-
-      for (let year = startYear; year <= currentYear; year++) {
-        // Add Fall term
-        terms.push(`Fall ${year}`)
-
-        // Add Spring term of next year
-        if (year < currentYear || (year === currentYear && currentMonth > 5)) {
-          terms.push(`Spring ${year + 1}`)
-        }
-
-        // Add Summer term
-        if (year < currentYear || (year === currentYear && currentMonth > 7)) {
-          terms.push(`Summer ${year}`)
-        }
-      }
-
-      // Sort terms chronologically and limit to most recent terms
-      terms.sort((a, b) => {
-        const yearA = Number.parseInt(a.split(" ")[1])
-        const yearB = Number.parseInt(b.split(" ")[1])
-        const seasonA = a.split(" ")[0]
-        const seasonB = b.split(" ")[0]
-
-        if (yearA !== yearB) return yearA - yearB
-
-        const seasonOrder = { Spring: 1, Summer: 2, Fall: 3 }
-        return seasonOrder[seasonA] - seasonOrder[seasonB]
-      })
-
-      // Take only the most recent 4-6 terms
-      const numTerms = 4 + Math.floor(random(100) * 3) // 4-6 terms
-      const recentTerms = terms.slice(-numTerms)
-
-      // For each term, generate 3-5 courses
+      // For each term, generate exactly 4 courses
       const usedCourseIndices = new Set()
 
-      recentTerms.forEach((term, termIndex) => {
-        const coursesPerTerm = 3 + Math.floor(random(termIndex * 10) * 3) // 3-5 courses per term
+      terms.forEach((term, termIndex) => {
+        const coursesPerTerm = 4 // Fixed at 4 courses per term
         const termCourses = []
 
         // Try to add unique courses up to coursesPerTerm
@@ -431,8 +380,44 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
     [seededRandom],
   )
 
+  // PDF generation function
+  const generatePDF = useCallback(() => {
+    setIsGeneratingPdf(true)
+    
+    // Import html2pdf dynamically
+    import('html2pdf.js').then((html2pdf) => {
+      const element = document.querySelector('.transcript')
+      const opt = {
+        margin: 10,
+        filename: `transcript_${displaySid}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      }
+      
+      html2pdf.default()
+        .set(opt)
+        .from(element)
+        .save()
+        .then(() => {
+          setIsGeneratingPdf(false)
+        })
+        .catch(err => {
+          console.error('Error generating PDF:', err)
+          setIsGeneratingPdf(false)
+          alert('Failed to generate PDF. Please try again.')
+        })
+    }).catch(err => {
+      console.error('Error loading html2pdf:', err)
+      setIsGeneratingPdf(false)
+      alert('Failed to load PDF generator. Please try again.')
+    })
+  }, [])
+
   // useEffect to initialize data
   useEffect(() => {
+    const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
+
     if (studentId && studentId !== "ERRORID") {
       const dobSeed = Number.parseInt(studentId, 10) || 12345
       setDateOfBirth(generateRandomDOB(dobSeed))
@@ -532,6 +517,16 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
       />
 
       <div className="watermark">CONFUCIUS INSTITUTE</div>
+
+      <div className="pdf-button-container">
+        <button 
+          className="pdf-button" 
+          onClick={generatePDF} 
+          disabled={isGeneratingPdf || displaySid === "N/A"}
+        >
+          {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+        </button>
+      </div>
 
       <div className="transcript">
         <div className="header">
@@ -753,7 +748,6 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
               alt="Registrar Signature"
               className="signature-img"
             />
-            <p>Frank Mavish Denny</p>
             <p className="title">University Registrar</p>
           </div>
           <div className="signature">
@@ -762,7 +756,6 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
               alt="Dean Signature"
               className="signature-img"
             />
-            <p>Frank Mavish Denny</p>
             <p className="title">Dean of Academic Affairs</p>
           </div>
         </div>
@@ -1003,6 +996,38 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
           text-align: center;
         }
         
+        .pdf-button-container {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1001;
+        }
+
+        .pdf-button {
+          background-color: #006633;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 10px 15px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+          transition: background-color 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .pdf-button:hover {
+          background-color: #005528;
+        }
+
+        .pdf-button:disabled {
+          background-color: #cccccc;
+          cursor: not-allowed;
+        }
+        
         @media print {
           body {
             background-color: #fff;
@@ -1020,6 +1045,10 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
           
           .watermark {
             color: rgba(0, 102, 51, 0.03) !important;
+          }
+          
+          .pdf-button-container {
+            display: none;
           }
         }
         
