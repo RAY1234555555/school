@@ -98,7 +98,7 @@ export default function AdmissionLetter({ fullName, studentEmail, studentId, err
   const title = lastName ? (lastName.endsWith("a") ? "Ms." : "Mr.") : "Student"
 
   // 生成ASURITE ID (类似于ASU的示例)
-  const asurite = studentEmail ? studentEmail.split("@")[0] : "student"
+  const asurite = studentEmail ? studentEmail : "student@kzxy.edu.kg"
 
   // 固定地址 (示例)
   const address = {
