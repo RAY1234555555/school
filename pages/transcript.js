@@ -1,365 +1,58 @@
 "use client"
 
 import Head from "next/head"
-import Script from "next/script"
-import { useEffect, useState, useCallback } from "react"
 import { parse } from "cookie"
+import { useEffect, useState } from "react"
 
-// --- fetchGoogleUser Helper (Remains the same) ---
-async function fetchGoogleUser(email) {
-  console.log(`[fetchGoogleUser - Transcript] Attempting for: ${email}`)
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REFRESH_TOKEN) {
-    console.error("[fetchGoogleUser - Transcript] Missing Google OAuth ENV VARS!")
-    return null
-  }
-  try {
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-        grant_type: "refresh_token",
-      }),
-    })
-    if (!tokenRes.ok) {
-      const errorBody = await tokenRes.text()
-      console.error(`[fetchGoogleUser - Transcript] Token Refresh Fail: ${tokenRes.status}`, errorBody)
-      return null
-    }
-    const { access_token } = await tokenRes.json()
-    console.log(`[fetchGoogleUser - Transcript] Token OK. Fetching user...`)
-    const userRes = await fetch(
-      `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(email)}?projection=full`,
-      { headers: { Authorization: `Bearer ${access_token}` } },
-    )
-    if (!userRes.ok) {
-      const errorBody = await userRes.text()
-      console.error(`[fetchGoogleUser - Transcript] User Fetch Fail: ${userRes.status}`, errorBody)
-      return null
-    }
-    console.log(`[fetchGoogleUser - Transcript] User OK.`)
-    return await userRes.json()
-  } catch (error) {
-    console.error("[fetchGoogleUser - Transcript] Network/Other Error:", error)
-    return null
-  }
-}
-
-// --- getServerSideProps (Remains the same) ---
+// --- getServerSideProps (简化版) ---
 export async function getServerSideProps({ req }) {
-  console.log("[getServerSideProps - Transcript] Starting...")
-  const cookies = parse(req.headers.cookie || "")
-  const oauthUsername = cookies.oauthUsername || null
-  const studentIdFromCookie = cookies.oauthStudentId || cookies.oauthUserId || null
-  const oauthFullNameFromCookie = cookies.oauthFullName || null
-  const trustLevel = Number.parseInt(cookies.oauthTrustLevel || "0", 10)
+  try {
+    console.log("[getServerSideProps] 开始加载...")
+    const cookies = parse(req.headers.cookie || "")
+    const oauthUsername = cookies.oauthUsername || null
+    const studentIdFromCookie = cookies.oauthStudentId || cookies.oauthUserId || null
+    const oauthFullNameFromCookie = cookies.oauthFullName || null
+    const trustLevel = Number.parseInt(cookies.oauthTrustLevel || "0", 10)
 
-  console.log("[getServerSideProps - Transcript] Cookies:", cookies)
-
-  if (!oauthUsername || trustLevel < 3) {
-    console.log("[getServerSideProps - Transcript] Redirect: Auth Fail.")
-    return { redirect: { destination: "/", permanent: false } }
-  }
-
-  const rawDom = process.env.EMAIL_DOMAIN
-  const domain = rawDom && rawDom.startsWith("@") ? rawDom : "@" + (rawDom || "kzxy.edu.kg")
-  const studentEmail = oauthUsername.includes("@") ? oauthUsername : `${oauthUsername}${domain}`
-
-  console.log("[getServerSideProps - Transcript] Fetching Google User:", studentEmail)
-  const googleUser = await fetchGoogleUser(studentEmail)
-
-  let fullName,
-    emailToUse,
-    finalStudentId,
-    fetchError = null
-
-  if (!googleUser) {
-    console.warn("[getServerSideProps - Transcript] Fetch Fail. Fallback.")
-    fetchError = "Could not refresh data from Google."
-    fullName = oauthFullNameFromCookie
-    emailToUse = studentEmail
-    finalStudentId = studentIdFromCookie
-  } else {
-    console.log("[getServerSideProps - Transcript] Fetch OK.")
-    fullName = googleUser.name
-      ? `${googleUser.name.givenName || ""} ${googleUser.name.familyName || ""}`.trim()
-      : oauthFullNameFromCookie
-    emailToUse = googleUser.primaryEmail || studentEmail
-    finalStudentId = studentIdFromCookie || googleUser.id
-  }
-
-  if (!finalStudentId) {
-    console.error("[getServerSideProps - Transcript] Error: ID Missing.")
-    return { props: { error: "Student ID missing." } }
-  }
-  if (!fullName) {
-    fullName = "Student"
-  }
-
-  console.log("[getServerSideProps - Transcript] Props Data:", { fullName, emailToUse, finalStudentId })
-
-  return { props: { fullName, studentEmail: emailToUse, studentId: finalStudentId, error: null, fetchError } }
-}
-
-// --- Redesigned Transcript Component based on ASU template ---
-export default function Transcript({ fullName, studentEmail, studentId, error, fetchError }) {
-  // State for transcript data
-  const [coursesData, setCoursesData] = useState({
-    selectedCourses: [],
-    totalAttempted: 0,
-    totalEarned: 0,
-    totalQualityPoints: 0,
-    gpa: "0.00",
-  })
-  const [dateOfBirth, setDateOfBirth] = useState("")
-  const [printDate, setPrintDate] = useState("")
-  const [transcriptNo, setTranscriptNo] = useState("")
-  const [verificationCode, setVerificationCode] = useState("")
-  const [academicStanding, setAcademicStanding] = useState("Good Standing")
-  const [degreeProgress, setDegreeProgress] = useState([])
-  const [currentTerm, setCurrentTerm] = useState("")
-  const printTranscript = useCallback(() => {
-    window.print()
-  }, [])
-
-  // Helpers remain the same
-  const seededRandom = useCallback((seed) => {
-    const x = Math.sin(seed) * 10000
-    return x - Math.floor(x)
-  }, [])
-
-  const generateRandomDOB = useCallback(
-    (seed) => {
-      const random = (offset) => seededRandom(seed + offset)
-      const baseYear = 1998 + Math.floor(random(50) * 8)
-      const m = Math.floor(random(51) * 12)
-      const d = 1 + Math.floor(random(52) * 27)
-      const dob = new Date(baseYear, m, d)
-      return dob.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-    },
-    [seededRandom],
-  )
-
-  // Updated course pool with more Confucius Institute appropriate courses
-  const confuciusCoursePool = [
-    { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0 },
-    { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0 },
-    { id: "CHN201", title: "Intermediate Chinese Listening", credits: 3.0 },
-    { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0 },
-    { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0 },
-    { id: "CUL130", title: "Chinese Tea Culture", credits: 2.0 },
-    { id: "CUL230", title: "Chinese Martial Arts", credits: 1.0 },
-    { id: "CUL250", title: "Chinese Folk Arts", credits: 1.0 },
-  ]
-
-  // Simplified to generate fewer terms with fixed number of courses
-  const generateCoursesData = useCallback((studentIdSeed) => {
-    const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "W"]
-    const gpaPoints = {
-      A: 4.0,
-      "A-": 3.7,
-      "B+": 3.3,
-      B: 3.0,
-      "B-": 2.7,
-      "C+": 2.3,
-      C: 2.0,
-      "C-": 1.7,
-      "D+": 1.3,
-      D: 1.0,
-      W: 0,
+    if (!oauthUsername || trustLevel < 3) {
+      console.log("[getServerSideProps] 权限不足，重定向到登录页")
+      return { redirect: { destination: "/", permanent: false } }
     }
 
-    // 使用简单的数字作为种子
-    const seed = 12345
-    const random = (offset) => {
-      const x = Math.sin(seed + offset) * 10000
-      return x - Math.floor(x)
-    }
-
-    // 固定课程数据
-    const courses = [
-      { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0, grade: "A" },
-      { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0, grade: "B+" },
-      { id: "CHN201", title: "Intermediate Chinese Listening", credits: 3.0, grade: "A-" },
-      { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0, grade: "B" },
-      { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0, grade: "B-" },
-    ]
-
-    // 计算总学分和GPA
-    let totalAttempted = 0
-    let totalEarned = 0
-    let totalQualityPoints = 0
-
-    courses.forEach((course) => {
-      const credit = course.credits
-      const grade = course.grade
-      const isEarned = grade !== "W"
-      const qualityPts = isEarned ? credit * (gpaPoints[grade] || 0) : 0
-
-      totalAttempted += credit
-      if (isEarned) {
-        totalEarned += credit
-        totalQualityPoints += qualityPts
-      }
-    })
-
-    const gpa = totalEarned > 0 ? (totalQualityPoints / totalEarned).toFixed(2) : "0.00"
-    const term = "Spring 2025"
-    setCurrentTerm(term)
+    const rawDom = process.env.EMAIL_DOMAIN
+    const domain = rawDom && rawDom.startsWith("@") ? rawDom : "@" + (rawDom || "kzxy.edu.kg")
+    const studentEmail = oauthUsername.includes("@") ? oauthUsername : `${oauthUsername}${domain}`
 
     return {
-      selectedCourses: [{ term, courses }],
-      totalAttempted,
-      totalEarned,
-      totalQualityPoints,
-      gpa,
+      props: {
+        fullName: oauthFullNameFromCookie || "Student",
+        studentEmail,
+        studentId: studentIdFromCookie || "123456",
+        error: null,
+      },
     }
-  }, [])
+  } catch (error) {
+    console.error("[getServerSideProps] 错误:", error)
+    return { props: { error: "加载数据时出错。请稍后再试。" } }
+  }
+}
 
-  // Generate degree progress data with randomized values
-  const generateDegreeProgress = useCallback((totalEarned, seed) => {
-    // 固定数据
-    const requirements = [
-      {
-        name: "Chinese Language Core",
-        required: 60.0,
-        completed: 6.0,
-        inProgress: 3.0,
-        remaining: 51.0,
-        status: "In Progress (10%)",
-      },
-      {
-        name: "Culture & History",
-        required: 45.0,
-        completed: 5.0,
-        inProgress: 0.0,
-        remaining: 40.0,
-        status: "In Progress (11%)",
-      },
-      {
-        name: "General Studies",
-        required: 30.0,
-        completed: 3.0,
-        inProgress: 0.0,
-        remaining: 27.0,
-        status: "In Progress (10%)",
-      },
-      {
-        name: "Electives",
-        required: 15.0,
-        completed: 0.0,
-        inProgress: 0.0,
-        remaining: 15.0,
-        status: "Not Started (0%)",
-      },
-    ]
+// 极简版成绩单组件
+export default function Transcript({ fullName, studentEmail, studentId, error }) {
+  const [printDate, setPrintDate] = useState("")
 
-    // 计算总计
-    const totalRequired = 150.0
-    const totalCompleted = 14.0
-    const totalInProgress = 3.0
-    const totalRemaining = totalRequired - totalCompleted
-    const totalPercentComplete = Math.round((totalCompleted / totalRequired) * 100)
-
-    requirements.push({
-      name: "Total Program Requirements",
-      required: totalRequired.toFixed(2),
-      completed: totalCompleted.toFixed(2),
-      inProgress: totalInProgress.toFixed(2),
-      remaining: totalRemaining.toFixed(2),
-      status: `In Progress (${totalPercentComplete}%)`,
-    })
-
-    return requirements
-  }, [])
-
-  // PDF generation function
-  // PDF generation function
-  // const generatePDF = useCallback(() => {
-  //   setIsGeneratingPdf(true)
-
-  //   // Import html2pdf dynamically
-  //   import("html2pdf.js")
-  //     .then((html2pdf) => {
-  //       const element = document.querySelector(".transcript")
-  //       const opt = {
-  //         margin: 10,
-  //         filename: `transcript_${displaySid}_${new Date().toISOString().slice(0, 10)}.pdf`,
-  //         image: { type: "jpeg", quality: 0.98 },
-  //         html2canvas: { scale: 2, useCORS: true, logging: false },
-  //         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  //       }
-
-  //       html2pdf
-  //         .default()
-  //         .set(opt)
-  //         .from(element)
-  //         .save()
-  //         .then(() => {
-  //           setIsGeneratingPdf(false)
-  //         })
-  //         .catch((err) => {
-  //           console.error("Error generating PDF:", err)
-  //           setIsGeneratingPdf(false)
-  //           alert("Failed to generate PDF. Please try again.")
-  //         })
-  //     })
-  //     .catch((err) => {
-  //       console.error("Error loading html2pdf:", err)
-  //       setIsGeneratingPdf(false)
-  //       alert("Failed to load PDF generator. Please try again.")
-  //     })
-  // }, [])
-
-  // useEffect to initialize data
   useEffect(() => {
-    const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
+    // 设置打印日期
+    setPrintDate(
+      new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    )
+  }, [])
 
-    if (studentId && studentId !== "ERRORID") {
-      // 设置固定的出生日期
-      setDateOfBirth("January 15, 1998")
-
-      // 生成课程数据
-      const courseData = generateCoursesData(studentId)
-      setCoursesData(courseData)
-
-      // 设置学位进度
-      setDegreeProgress(generateDegreeProgress(courseData.totalEarned))
-
-      // 设置打印日期
-      setPrintDate(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
-
-      // 设置成绩单编号和验证码
-      setTranscriptNo(`CI-TR-20250512-${studentId.substring(0, 2)}`)
-      setVerificationCode(`CI250512-${studentId.substring(0, 6)}-TR`)
-
-      // 设置学术状态
-      const gpaNum = Number.parseFloat(courseData.gpa)
-      if (gpaNum >= 3.5) {
-        setAcademicStanding("Excellent Standing")
-      } else if (gpaNum >= 3.0) {
-        setAcademicStanding("Good Standing")
-      } else if (gpaNum >= 2.0) {
-        setAcademicStanding("Satisfactory")
-      } else if (gpaNum > 0) {
-        setAcademicStanding("Academic Probation")
-      } else {
-        setAcademicStanding("Not Started")
-      }
-    } else {
-      // 设置默认值
-      setDateOfBirth("N/A")
-      setCoursesData({ selectedCourses: [], totalAttempted: 0, totalEarned: 0, totalQualityPoints: 0, gpa: "N/A" })
-      setPrintDate(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
-      setTranscriptNo("Transcript No. N/A")
-      setVerificationCode("N/A")
-      setAcademicStanding("N/A")
-    }
-  }, [studentId, generateCoursesData, generateDegreeProgress])
-
-  // Error handling
+  // 错误处理
   if (error) {
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "red", fontFamily: "Arial, sans-serif" }}>
@@ -368,15 +61,74 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         <a href="/student-portal" style={{ color: "#007bff", textDecoration: "underline", marginRight: "15px" }}>
           Back to Portal
         </a>
-        <a href="/" style={{ color: "#007bff", textDecoration: "underline" }}>
-          Go to Login
-        </a>
       </div>
     )
   }
 
-  const displaySid = studentId && studentId !== "ERRORID" ? String(studentId).padStart(6, "0") : "N/A"
-  const degreeProgressData = generateDegreeProgress(coursesData.totalEarned)
+  // 固定数据
+  const displaySid = studentId ? String(studentId).padStart(6, "0") : "N/A"
+  const dateOfBirth = "January 15, 1998"
+  const gpa = "3.45"
+  const academicStanding = "Good Standing"
+  const totalAttempted = 14.0
+  const totalEarned = 14.0
+  const totalQualityPoints = 48.3
+  const currentTerm = "Spring 2025"
+  const transcriptNo = `CI-TR-20250512-${displaySid.substring(0, 2)}`
+  const verificationCode = `CI250512-${displaySid.substring(0, 6)}-TR`
+
+  // 固定课程数据
+  const courses = [
+    { id: "CHN101", title: "Elementary Chinese Speaking", credits: 3.0, grade: "A" },
+    { id: "CHN102", title: "Elementary Chinese Reading", credits: 3.0, grade: "B+" },
+    { id: "CHN201", title: "Intermediate Chinese Listening", credits: 3.0, grade: "A-" },
+    { id: "CUL100", title: "Chinese Culture and Society", credits: 3.0, grade: "B" },
+    { id: "CUL120", title: "Chinese Calligraphy", credits: 2.0, grade: "B-" },
+  ]
+
+  // 固定学位进度数据
+  const degreeProgress = [
+    {
+      name: "Chinese Language Core",
+      required: "60.00",
+      completed: "6.00",
+      inProgress: "3.00",
+      remaining: "51.00",
+      status: "In Progress (10%)",
+    },
+    {
+      name: "Culture & History",
+      required: "45.00",
+      completed: "5.00",
+      inProgress: "0.00",
+      remaining: "40.00",
+      status: "In Progress (11%)",
+    },
+    {
+      name: "General Studies",
+      required: "30.00",
+      completed: "3.00",
+      inProgress: "0.00",
+      remaining: "27.00",
+      status: "In Progress (10%)",
+    },
+    {
+      name: "Electives",
+      required: "15.00",
+      completed: "0.00",
+      inProgress: "0.00",
+      remaining: "15.00",
+      status: "Not Started (0%)",
+    },
+    {
+      name: "Total Program Requirements",
+      required: "150.00",
+      completed: "14.00",
+      inProgress: "3.00",
+      remaining: "133.00",
+      status: "In Progress (9%)",
+    },
+  ]
 
   return (
     <>
@@ -389,37 +141,10 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         />
       </Head>
 
-      {/* Keep JsBarcode script */}
-      <Script
-        src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          if (window.JsBarcode && document.getElementById("barcode-svg") && displaySid !== "N/A") {
-            try {
-              window.JsBarcode("#barcode-svg", displaySid, {
-                format: "CODE128",
-                lineColor: "#000",
-                width: 2,
-                height: 50,
-                displayValue: true,
-                textMargin: 5,
-              })
-            } catch (e) {
-              console.error("JsBarcode error:", e)
-            }
-          } else if (displaySid === "N/A") {
-            console.warn("Student ID missing, cannot generate barcode.")
-          }
-        }}
-        onError={(e) => {
-          console.error("Failed to load JsBarcode script:", e)
-        }}
-      />
-
       <div className="watermark">CONFUCIUS INSTITUTE</div>
 
       <div className="pdf-button-container">
-        <button className="pdf-button" onClick={printTranscript} disabled={displaySid === "N/A"}>
+        <button className="pdf-button" onClick={() => window.print()}>
           Print / Save as PDF
         </button>
       </div>
@@ -467,7 +192,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
                 <td>
                   <strong>Date of Birth</strong>
                 </td>
-                <td>{dateOfBirth || "N/A"}</td>
+                <td>{dateOfBirth}</td>
                 <td>
                   <strong>Email</strong>
                 </td>
@@ -491,11 +216,11 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
                 <td>
                   <strong>Institutional GPA</strong>
                 </td>
-                <td>{coursesData.gpa}</td>
+                <td>{gpa}</td>
                 <td>
                   <strong>Total Credits Attempted</strong>
                 </td>
-                <td>{coursesData.totalAttempted.toFixed(1)}</td>
+                <td>{totalAttempted.toFixed(1)}</td>
               </tr>
               <tr>
                 <td>
@@ -505,13 +230,13 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
                 <td>
                   <strong>Total Credits Earned</strong>
                 </td>
-                <td>{coursesData.totalEarned.toFixed(1)}</td>
+                <td>{totalEarned.toFixed(1)}</td>
               </tr>
               <tr>
                 <td>
                   <strong>Total Quality Points</strong>
                 </td>
-                <td>{coursesData.totalQualityPoints.toFixed(2)}</td>
+                <td>{totalQualityPoints.toFixed(1)}</td>
                 <td>
                   <strong>Current Semester</strong>
                 </td>
@@ -524,38 +249,32 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         <div className="section">
           <div className="section-title">CONFUCIUS INSTITUTE AT KYRGYZ NATIONAL UNIVERSITY</div>
 
-          {coursesData.selectedCourses.length === 0 ? (
-            <p className="term-summary">No courses completed yet.</p>
-          ) : (
-            coursesData.selectedCourses.map((termData, termIdx) => (
-              <div key={termIdx}>
-                <div className="term-title">{termData.term}</div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Course ID</th>
-                      <th>Course Title</th>
-                      <th>Grade</th>
-                      <th>Credits</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {termData.courses.map((course, courseIdx) => (
-                      <tr key={courseIdx}>
-                        <td>{course.courseId}</td>
-                        <td>{course.title}</td>
-                        <td>{course.grade}</td>
-                        <td>{course.credit.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="term-summary">
-                  Term Credits: {termData.courses.reduce((sum, course) => sum + course.credit, 0).toFixed(1)}
-                </p>
-              </div>
-            ))
-          )}
+          <div>
+            <div className="term-title">{currentTerm}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Course ID</th>
+                  <th>Course Title</th>
+                  <th>Grade</th>
+                  <th>Credits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {courses.map((course, index) => (
+                  <tr key={index}>
+                    <td>{course.id}</td>
+                    <td>{course.title}</td>
+                    <td>{course.grade}</td>
+                    <td>{course.credits.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="term-summary">
+              Term Credits: {courses.reduce((sum, course) => sum + course.credits, 0).toFixed(1)}
+            </p>
+          </div>
         </div>
 
         <div className="section">
@@ -572,7 +291,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
               </tr>
             </thead>
             <tbody>
-              {degreeProgressData.map((req, index) => (
+              {degreeProgress.map((req, index) => (
                 <tr key={index}>
                   <td>{req.name}</td>
                   <td>{req.required}</td>
@@ -657,11 +376,7 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         </div>
 
         <div className="barcode-container">
-          {displaySid !== "N/A" ? (
-            <svg id="barcode-svg" width="300" height="70"></svg>
-          ) : (
-            <p className="barcode-placeholder">Barcode N/A (ID Missing)</p>
-          )}
+          <p className="barcode-placeholder">Student ID: {displaySid}</p>
         </div>
 
         <div className="footer">
@@ -858,13 +573,16 @@ export default function Transcript({ fullName, studentEmail, studentId, error, f
         }
         
         .barcode-placeholder {
-          color: grey;
-          font-size: 12px;
+          color: #333;
+          font-size: 16px;
           margin-top: 5px;
           height: 70px;
           display: flex;
           align-items: center;
           justify-content: center;
+          font-family: monospace;
+          border: 1px dashed #ccc;
+          background: #f9f9f9;
         }
         
         .footer {
